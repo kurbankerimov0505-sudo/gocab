@@ -1,0 +1,3927 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GoCab Control</title>
+<style>
+:root{
+  --amber:#ffc629; --ink:#1a1a1a; --ink-soft:#4a4a4a; --paper:#ffffff;
+  --bg:#f4f5f7; --line:#e6e7eb; --ok:#2e9e5b; --bad:#d64545; --warn:#c9891c;
+  --radius:12px; --shadow:0 1px 2px rgba(0,0,0,.05), 0 4px 16px rgba(0,0,0,.06);
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; padding:0; background:var(--bg); color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+button, input, select, textarea{ font-family:inherit; font-size:14px; }
+button{ cursor:pointer; }
+
+/* ---------- shell ---------- */
+.shell{ min-height:100vh; display:flex; flex-direction:column; }
+.topbar{ display:flex; align-items:center; gap:10px; padding:8px 16px; background:var(--paper);
+  border-bottom:1px solid var(--line); position:sticky; top:0; z-index:30; }
+.icon-btn{ background:none; border:1px solid transparent; border-radius:8px; width:32px; height:32px;
+  display:inline-flex; align-items:center; justify-content:center; font-size:16px; }
+.icon-btn:hover{ background:var(--bg); }
+.avatar{ width:32px; height:32px; border-radius:50%; background:var(--amber); color:var(--ink);
+  display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12px; }
+.brand{ font-weight:800; letter-spacing:.02em; }
+.role-pill{ background:var(--bg); border:1px solid var(--line); border-radius:999px; padding:4px 10px; font-size:12px; color:var(--ink-soft); }
+.lang-switch{ display:flex; gap:2px; background:var(--bg); border-radius:8px; padding:2px; }
+.lang-btn{ border:none; background:transparent; border-radius:6px; padding:4px 8px; font-size:12px; color:var(--ink-soft); }
+.lang-btn.active{ background:var(--paper); color:var(--ink); box-shadow:var(--shadow); font-weight:700; }
+.spacer{ flex:1; }
+.acct-wrap{ position:relative; }
+.acct-menu{ display:none; position:absolute; right:0; top:36px; background:var(--paper); border:1px solid var(--line);
+  border-radius:var(--radius); box-shadow:var(--shadow); min-width:220px; padding:6px; z-index:40; }
+.acct-menu.open{ display:block; }
+.acct-menu-label{ font-size:11px; text-transform:uppercase; color:var(--ink-soft); padding:6px 8px; }
+.acct-item{ display:block; width:100%; text-align:left; background:none; border:none; padding:8px; border-radius:8px; }
+.acct-item:hover{ background:var(--bg); }
+.acct-item.active{ background:var(--amber); font-weight:700; }
+
+.main{ flex:1; display:flex; flex-direction:column; max-width:1180px; width:100%; margin:0 auto; padding:0 16px; }
+
+/* ---------- drawer (overlay) ---------- */
+.drawer-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:45; display:none; }
+.drawer-backdrop.show{ display:block; }
+.drawer{ position:fixed; top:0; left:0; bottom:0; width:300px; max-width:86vw; background:var(--paper);
+  z-index:50; transform:translateX(-100%); transition:transform .22s ease; overflow-y:auto; box-shadow:var(--shadow); }
+.drawer.open{ transform:translateX(0); }
+.drawer-head{ display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid var(--line); }
+.drawer-group-head{ width:100%; display:flex; justify-content:space-between; background:none; border:none;
+  padding:12px 16px; font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); font-weight:700; }
+.drawer-item{ display:flex; align-items:center; gap:10px; width:100%; text-align:left; background:none; border:none;
+  padding:10px 16px; position:relative; }
+.drawer-item:hover{ background:var(--bg); }
+.drawer-item.active{ background:#fff6e0; border-right:3px solid var(--amber); font-weight:700; }
+.di-icon{ width:20px; text-align:center; }
+.di-badge{ margin-left:auto; background:var(--bad); color:#fff; border-radius:999px; font-size:11px; padding:1px 7px; }
+
+/* ---------- navtabs ---------- */
+.navtabs{ display:flex; gap:6px; padding:14px 0 8px; overflow-x:auto; position:sticky; top:49px; background:var(--bg); z-index:20; }
+.navtab{ border:1px solid var(--line); background:var(--paper); border-radius:999px; padding:7px 14px; white-space:nowrap; color:var(--ink-soft); }
+.navtab.active{ background:var(--ink); color:#fff; border-color:var(--ink); font-weight:600; }
+
+/* ---------- page / cards ---------- */
+.page{ padding-bottom:40px; perspective:1200px; }
+.card{ background:var(--paper); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow);
+  padding:16px; margin-bottom:16px; }
+.card-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; gap:10px; flex-wrap:wrap; }
+.card-head h3{ margin:0; font-size:15px; }
+.card-actions{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.muted{ color:var(--ink-soft); font-size:12.5px; }
+.empty-state{ text-align:center; color:var(--ink-soft); padding:30px 0; }
+
+.reveal{ transform-origin:top center; animation:blindsIn .38s ease both; }
+@keyframes blindsIn{ from{ transform:rotateX(-78deg); opacity:0; } to{ transform:rotateX(0deg); opacity:1; } }
+@media (prefers-reduced-motion: reduce){ .reveal{ animation:none !important; } }
+
+/* ---------- table ---------- */
+.table-card{ padding:0; overflow:hidden; }
+.table-card .card-head{ padding:14px 16px 8px; margin:0; }
+.table-scroll{ overflow-x:auto; }
+.tbl{ width:100%; border-collapse:collapse; font-size:13px; }
+.tbl th{ text-align:left; padding:9px 12px; background:var(--bg); color:var(--ink-soft); font-weight:600;
+  border-bottom:1px solid var(--line); white-space:nowrap; position:sticky; top:0; }
+.tbl td{ padding:9px 12px; border-bottom:1px solid var(--line); white-space:nowrap; }
+.tbl tbody tr:hover{ background:#fffaf0; }
+.table-foot{ display:flex; justify-content:space-between; align-items:center; padding:10px 16px; }
+.pager{ display:flex; gap:4px; }
+.pg-btn{ border:1px solid var(--line); background:var(--paper); border-radius:6px; width:26px; height:26px; font-size:12px; }
+.pg-btn.active{ background:var(--ink); color:#fff; border-color:var(--ink); }
+
+/* ---------- filters ---------- */
+.filter-toggle{ position:relative; }
+.badge{ background:var(--amber); border-radius:999px; padding:0 6px; font-size:11px; font-weight:700; }
+.filters-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.25); z-index:55; display:none; }
+.filters-backdrop.show{ display:block; }
+.filters-drawer{ position:fixed; top:0; right:0; bottom:0; width:320px; max-width:88vw; background:var(--paper);
+  z-index:60; transform:translateX(100%); transition:transform .2s ease; display:flex; flex-direction:column; box-shadow:var(--shadow); }
+.filters-drawer.open{ transform:translateX(0); }
+.filters-head{ display:flex; justify-content:space-between; padding:14px 16px; border-bottom:1px solid var(--line); }
+.filters-body{ padding:12px 16px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:12px; }
+.filters-foot{ display:flex; gap:8px; padding:12px 16px; border-top:1px solid var(--line); }
+.f-field{ display:flex; flex-direction:column; gap:5px; font-size:12.5px; color:var(--ink-soft); }
+.f-field input, .f-field select{ padding:7px 9px; border:1px solid var(--line); border-radius:8px; }
+.ms-box{ display:flex; flex-direction:column; gap:4px; max-height:140px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:6px; }
+.ms-opt{ font-size:13px; color:var(--ink); display:flex; gap:6px; align-items:center; }
+
+/* ---------- modal ---------- */
+.modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:70; display:flex;
+  align-items:center; justify-content:center; padding:20px; }
+.modal-card{ background:var(--paper); border-radius:var(--radius); width:100%; max-width:560px;
+  max-height:88vh; display:flex; flex-direction:column; box-shadow:var(--shadow); }
+.modal-head{ display:flex; justify-content:space-between; align-items:center; padding:16px; border-bottom:1px solid var(--line); }
+.modal-head h3{ margin:0; font-size:16px; }
+.modal-body{ padding:16px; overflow-y:auto; display:flex; flex-direction:column; gap:12px; }
+.modal-foot{ display:flex; justify-content:flex-end; gap:8px; padding:14px 16px; border-top:1px solid var(--line); }
+.m-field{ display:flex; flex-direction:column; gap:5px; font-size:13px; }
+.m-field input, .m-field select, .m-field textarea{ padding:8px 10px; border:1px solid var(--line); border-radius:8px; }
+.m-check{ flex-direction:row; align-items:center; }
+
+/* ---------- buttons ---------- */
+.btn{ border-radius:8px; padding:8px 14px; border:1px solid var(--line); font-size:13px; font-weight:600; background:var(--paper); }
+.btn-primary{ background:var(--amber); border-color:var(--amber); color:var(--ink); }
+.btn-ghost{ background:var(--paper); color:var(--ink); }
+.btn:hover{ filter:brightness(0.97); }
+.btn-sm{ padding:5px 10px; font-size:12px; }
+
+/* ---------- number inputs: no spinners, no wheel scroll surprises ---------- */
+input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button{ -webkit-appearance:none; margin:0; }
+input[type=number]{ -moz-appearance:textfield; appearance:textfield; }
+.no-spin{ appearance:textfield; -moz-appearance:textfield; }
+.no-spin::-webkit-inner-spin-button, .no-spin::-webkit-outer-spin-button{ -webkit-appearance:none; margin:0; }
+
+/* ---------- presentational bits ---------- */
+.pill{ display:inline-block; padding:2px 9px; border-radius:999px; font-size:12px; font-weight:600; }
+.pill-ok{ background:#e7f6ec; color:var(--ok); }
+.pill-bad{ background:#fbeaea; color:var(--bad); }
+.pill-warn{ background:#fdf3e0; color:var(--warn); }
+.chip{ display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; margin-right:4px;
+  background:color-mix(in srgb, var(--chip-c) 18%, white); color:var(--chip-c); border:1px solid var(--chip-c); }
+.barblock{ background:var(--line); border-radius:6px; height:8px; overflow:hidden; width:100%; }
+.barblock-fill{ height:100%; background:var(--ok); }
+.barblock-warn{ background:var(--warn); }
+.barblock-bad{ background:var(--bad); }
+.spark{ width:120px; height:32px; color:var(--amber); }
+.ring{ width:96px; height:96px; }
+.ring-bg{ fill:none; stroke:var(--line); stroke-width:8; }
+.ring-fg{ fill:none; stroke:var(--amber); stroke-width:8; stroke-linecap:round; transition:stroke-dashoffset .3s; }
+.ring-txt{ font-size:16px; font-weight:800; fill:var(--ink); }
+.gauge-bg{ stroke:var(--line); stroke-width:10; }
+.gauge-fg{ stroke:var(--amber); stroke-width:10; stroke-linecap:round; }
+.gauge-tick{ stroke:var(--ink); stroke-width:2; }
+.gauge-floor{ stroke:var(--bad); stroke-width:2; }
+.gauge-txt{ font-size:15px; font-weight:800; fill:var(--ink); }
+.gauge{ width:140px; height:98px; display:block; margin:4px auto 0; }
+.donut{ width:100px; height:100px; }
+.linechart{ width:100%; height:220px; }
+.stackchart{ width:100%; height:220px; }
+
+/* ---------- dashboard ---------- */
+.grid{ display:grid; gap:14px; }
+.grid-4{ grid-template-columns:repeat(4,1fr); }
+.grid-3{ grid-template-columns:repeat(3,1fr); }
+.grid-2{ grid-template-columns:repeat(2,1fr); }
+@media (max-width:900px){ .grid-4,.grid-3,.grid-2{ grid-template-columns:repeat(2,1fr); } }
+@media (max-width:560px){ .grid-4,.grid-3,.grid-2{ grid-template-columns:1fr; } }
+.stat-tile{ background:var(--paper); border:1px solid var(--line); border-radius:var(--radius); padding:14px; box-shadow:var(--shadow); }
+.stat-tile .v{ font-size:22px; font-weight:800; }
+.stat-tile .l{ color:var(--ink-soft); font-size:12.5px; margin-bottom:4px; }
+.stat-tile .d{ font-size:12px; margin-top:4px; }
+.d-up{ color:var(--ok); } .d-down{ color:var(--bad); }
+
+/* ---------- kanban / phases ---------- */
+.phase-board{ display:grid; grid-template-columns:repeat(7,minmax(150px,1fr)); gap:10px; overflow-x:auto; }
+.phase-col{ background:var(--bg); border-radius:10px; padding:8px; min-height:80px; }
+.phase-col h4{ font-size:12px; margin:2px 4px 8px; color:var(--ink-soft); }
+.phase-card{ background:var(--paper); border:1px solid var(--line); border-radius:8px; padding:8px; margin-bottom:8px; font-size:12.5px; box-shadow:var(--shadow); }
+.phase-card b{ display:block; margin-bottom:2px; }
+
+/* ---------- toast ---------- */
+.toast{ position:fixed; bottom:26px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff;
+  padding:10px 18px; border-radius:999px; font-size:13px; z-index:80; box-shadow:var(--shadow); }
+
+/* ---------- debt matrix heat ---------- */
+.heat-cell{ text-align:center; border-radius:4px; padding:2px 6px; font-size:11px; }
+.dot{ display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--ok); }
+
+@media (max-width:600px){ .main{ padding:0 12px; } }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+/* ---- 01-utils.js ---- */
+/* ===== 01. UTILS & FORMATTING ===== */
+(function(global){
+'use strict';
+
+// --- Seeded PRNG (mulberry32) ---
+function rng(seed){
+  let a = seed >>> 0;
+  return function(){
+    a += 0x6D2B79F5;
+    let t = a;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function pick(rnd, arr){ return arr[Math.floor(rnd()*arr.length)]; }
+function pickN(rnd, arr, n){
+  const pool = arr.slice(); const out = [];
+  n = Math.min(n, pool.length);
+  for(let i=0;i<n;i++){ const idx = Math.floor(rnd()*pool.length); out.push(pool.splice(idx,1)[0]); }
+  return out;
+}
+function randInt(rnd, min, max){ return Math.floor(rnd()*(max-min+1))+min; }
+function clamp(x, lo, hi){ return Math.max(lo, Math.min(hi, x)); }
+function uid(prefix){ uid._n = (uid._n||0)+1; return prefix + '-' + uid._n; }
+
+// --- Fixed reference date ---
+const TODAY = new Date(2026, 8, 8); // 2026-09-08, months are 0-indexed
+// Fixed "current instant" (date + time) the whole demo pretends it is right
+// now — used for anything time-of-day sensitive (intake window, SLA
+// countdowns, timers) so the app's behaviour is reproducible regardless of
+// the real wall clock.
+const NOW = new Date(2026, 8, 8, 14, 0, 0);
+
+function shift(days){
+  const d = new Date(TODAY.getTime());
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+const DOW = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
+const MON = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+const MON_SHORT = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
+
+function pad2(n){ return String(n).padStart(2,'0'); }
+
+function iso(d){
+  if(!(d instanceof Date)) d = new Date(d);
+  return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate());
+}
+
+function fmtD(d){
+  if(!(d instanceof Date)) d = new Date(d);
+  return pad2(d.getDate()) + '.' + pad2(d.getMonth()+1) + '.' + d.getFullYear();
+}
+
+function fmtDT(d){
+  if(!(d instanceof Date)) d = new Date(d);
+  return fmtD(d) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+}
+
+function fmtLong(d){
+  if(!(d instanceof Date)) d = new Date(d);
+  return d.getDate() + ' ' + MON[d.getMonth()] + ' ' + d.getFullYear();
+}
+
+function daysBetween(a,b){
+  const ms = 24*3600*1000;
+  const da = new Date(a.getFullYear? a.getFullYear():a);
+  return Math.round((new Date(b) - new Date(a)) / ms);
+}
+
+// --- Money formatting: thin-space thousands, 2 decimals ---
+function money(v){
+  v = Number(v)||0;
+  const sign = v < 0 ? '−' : '';
+  const abs = Math.abs(v);
+  const fixed = abs.toFixed(2);
+  let [intPart, dec] = fixed.split('.');
+  intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return sign + intPart + '.' + dec;
+}
+function cur(v){ return money(v) + ' MAD'; }
+function pctS(x){ return (x*100).toFixed(1).replace('.', ',') + '%'; }
+function num(v){
+  v = Number(v)||0;
+  const sign = v<0?'−':'';
+  const abs = Math.abs(Math.round(v));
+  return sign + String(abs).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+}
+
+function esc(s){
+  s = (s===undefined||s===null) ? '' : String(s);
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// --- Plate formatting: 12345-A-6 ---
+function fmtPlate(p){ return p; }
+
+const Utils = {
+  rng, pick, pickN, randInt, clamp, uid,
+  TODAY, NOW, shift, iso, fmtD, fmtDT, fmtLong, daysBetween,
+  money, cur, pctS, num, esc, fmtPlate,
+  DOW, MON, MON_SHORT, pad2
+};
+
+global.GC = global.GC || {};
+global.GC.Utils = Utils;
+
+})(typeof window !== 'undefined' ? window : globalThis);
+
+
+/* ---- 02-constants.js ---- */
+/* ===== 02. BUSINESS CONSTANTS & ENUMERATIONS ===== */
+(function(global){
+'use strict';
+
+const CONST = {
+  RATE: 120,
+  IDLE: 320,
+  TO_KM: 9000,
+  DEBT_LIMIT_DAYS: 4,
+  DEPOSIT_DAYS: 5,
+  DEP_TARGET: 1500,
+  FIX_PAY: 6000,
+  BONUS: 9000,
+  FINE_NONRETURN: 1500,
+  PERIOD: 30,
+  CDAYS: 30,
+  AF: { maxCost: 900, maxDur: 150, minDur: 3, maxPerHour: 6 }
+};
+
+const ENUM = {
+  STATUS:  ['Работает','В отпуске','Заблокирован','Уволен'],
+  YSTATUS: ['Работает','Заблокирован','Нет аккаунта'],
+  FORMS:   ['Штатный','Самозанятый','ИП'],
+  SOURCES: ['Баланс','Баланс Яндекс','Баланс штрафов','Баланс повреждений'],
+  OPTYPES: ['Пополнение','Списание'],
+  IFACES:  ['Личный кабинет','Терминал','Менеджер','Система по расписанию'],
+  MODELS:  ['Bestune B70','Bestune T55','Bestune T77','MG5','Dacia Logan',
+            'Dacia Sandero','Renault Logan','Hyundai Accent'],
+  PRIO:    ['Критично','Высокий','Обычный'],
+  VIOL:    ['Превышение скорости','Стоянка в запрещённом месте','Проезд на красный',
+            'Ремень безопасности','Телефон за рулём','Разметка','Тонировка'],
+  CAR_STATUS: ['В работе','На сервисе','Свободен','Списан'],
+  FINE_STATUS: ['Не оплачен','Оплачен','Оспаривается'],
+  COMP_STATUS: ['На одобрении','Одобрено','Отказано'],
+  SHIFT_STATUS: ['Открыта','Закрыта','Просрочена'],
+  CONTRACT_STATUS: ['Подписан','Ожидает подписи','Истёк'],
+  PAYOUT_STATUS: ['Выплачена','На проверке','Отклонена'],
+  REPAIR_PHASES: ['Записан','Приёмка в гараже','Работы и запчасти','Выдача запчастей',
+                  'В ремонте','Проверка перед выдачей','Готова после ремонта'],
+  REPAIR_PHASE_OWNER: ['Приёмщик на ремонт','Приёмщик + водитель','Механик','Кладовщик','Механик','Приёмщик на ремонт','—'],
+  REPAIR_PHASE_SLA_H: [2,1,24,48,48,12,0],
+  ROLES: ['Кантри-менеджер','Менеджер парка','Приёмщик на ремонт','Механик','Кладовщик','Водитель','Диспетчер'],
+  RIGHTS: ['Все разделы','Водители','Автопарк','Касса','Штрафы','Рассрочка','Ремонты','Ремонты: склад',
+           'Приём-выдача','Путевые листы','Компенсации: запросы','Компенсации: одобрение',
+           'Справочники','Пользователи'],
+  AKPP: ['АКПП','МКПП']
+};
+
+// Sections controlled by role -> which of the 23 menu sections a role can see
+const ROLE_SECTIONS = {
+  'Кантри-менеджер': ['dash','dispatch','tasks','notif','cars','repairs','handover','shifts','inspections',
+    'incidents','drivers','contracts','tickets','import','comments','mgmt','fines','deposits','leasing',
+    'pnl','stats','refs','users'],
+  'Менеджер парка': ['dash','dispatch','tasks','notif','cars','repairs','handover','shifts','inspections',
+    'incidents','drivers','contracts','tickets','import','comments','mgmt','fines','deposits','leasing',
+    'pnl','stats'],
+  'Приёмщик на ремонт': ['dash','tasks','repairs','handover','cars','shifts','inspections','incidents'],
+  'Механик': ['dash','tasks','repairs','cars','inspections'],
+  'Кладовщик': ['dash','tasks','repairs'],
+  'Водитель': ['dash','tasks','repairs'],
+  'Диспетчер': ['dash','dispatch','drivers','cars','notif','tasks','shifts','tickets','comments']
+};
+
+// Map arbitrary job titles to access role
+const TITLE_TO_ROLE = {
+  'Руководитель страны': 'Кантри-менеджер',
+  'Финансовый контролёр': 'Менеджер парка',
+  'Старший диспетчер': 'Диспетчер'
+};
+
+global.GC = global.GC || {};
+global.GC.CONST = CONST;
+global.GC.ENUM = ENUM;
+global.GC.ROLE_SECTIONS = ROLE_SECTIONS;
+global.GC.TITLE_TO_ROLE = TITLE_TO_ROLE;
+
+})(typeof window !== 'undefined' ? window : globalThis);
+
+
+/* ---- 03-seed-data.js ---- */
+/* ===== 03. REFERENCE DATA & FLEET SEED ===== */
+(function(global){
+'use strict';
+const U = global.GC.Utils, C = global.GC.CONST, E = global.GC.ENUM;
+const { rng, pick, pickN, randInt, clamp, uid, shift, iso } = U;
+
+const SEED = 20260908; // fixed so demo data is reproducible
+const R = rng(SEED);
+
+function buildRefData(){
+  const DB = {};
+
+  // --- Organisations ---
+  DB.orgs = [
+    { id:'org-1', name:'GoCab Fleet SARL', carsPlanned:7 },
+    { id:'org-2', name:'Atlas Prokat SARL', carsPlanned:3 }
+  ];
+
+  // --- Branches (divisions) ---
+  DB.divs = [
+    { id:'div-1', name:'Касабланка №1', org:'org-1', city:'Касабланка', manager:'Мouad Koudia' },
+    { id:'div-2', name:'Касабланка №2', org:'org-1', city:'Касабланка', manager:'Мouad Koudia' },
+    { id:'div-3', name:'Рабат №1', org:'org-2', city:'Рабат', manager:'Nehemie Koffi' }
+  ];
+
+  // --- Dispatch units ---
+  DB.disp = [
+    { id:'disp-1', name:'Диспетчерская Касабланка', div:'div-1' },
+    { id:'disp-2', name:'Диспетчерская Рабат', div:'div-3' }
+  ];
+
+  // --- Terminals ---
+  DB.terminals = [
+    { id:'term-1', name:'Терминал №1 — Касабланка', div:'div-1', status:'Активен' },
+    { id:'term-2', name:'Терминал №1 — Рабат', div:'div-3', status:'Активен' }
+  ];
+
+  // --- Banks ---
+  DB.banks = [
+    { id:'bank-1', name:'Attijariwafa Bank', bic:'BCMAMAMC' },
+    { id:'bank-2', name:'Banque Populaire', bic:'BCPOMAMC' }
+  ];
+
+  // --- Compensation reasons ---
+  DB.reasons = [
+    { id:'rs-1', name:'Простой по вине компании', limit:2000 },
+    { id:'rs-2', name:'Компенсация топлива', limit:500 },
+    { id:'rs-3', name:'Ошибка списания', limit:1000 },
+    { id:'rs-4', name:'Поломка не по вине водителя', limit:1500 },
+    { id:'rs-5', name:'Компенсация ДТП', limit:5000 },
+    { id:'rs-6', name:'Задержка выдачи авто', limit:800 },
+    { id:'rs-7', name:'Некорректный штраф', limit:1200 },
+    { id:'rs-8', name:'Прочее', limit:300 }
+  ];
+
+  // --- Insurers ---
+  DB.insurers = [
+    { id:'ins-1', name:'Wafa Assurance' },
+    { id:'ins-2', name:'RMA Assurance' },
+    { id:'ins-3', name:'Saham Assurance' }
+  ];
+
+  // --- Tags ---
+  DB.tags = [
+    { id:'tag-1', name:'VIP', color:'#ffc629' },
+    { id:'tag-2', name:'Новый', color:'#4caf7d' },
+    { id:'tag-3', name:'Риск', color:'#e0554f' },
+    { id:'tag-4', name:'Отпуск', color:'#7c93c9' },
+    { id:'tag-5', name:'ГБО', color:'#9a7bd1' },
+    { id:'tag-6', name:'Долгосрочный', color:'#4a90d9' }
+  ];
+
+  // --- Damage price list (tariffs) ---
+  const ZONES = ['Передний бампер','Задний бампер','Капот','Крыша','Левая дверь','Правая дверь','Лобовое стекло','Заднее стекло','Диск колеса','Зеркало'];
+  const DTYPES = ['Царапина','Вмятина','Скол','Трещина','Разбито'];
+  DB.tariffs = ZONES.map((z,i)=>({
+    id:'tf-'+(i+1), zone:z, type: DTYPES[i%DTYPES.length],
+    price: [400,900,1600,2200,4500][i%5]
+  }));
+
+  return DB;
+}
+
+function buildUsers(DB){
+  DB.users = [
+    { id:'u-1', name:'Курбан Керимов', role:'Руководитель страны', appRole:'Кантри-менеджер', div:null,
+      rights:['Все разделы'] },
+    { id:'u-2', name:'Мouad Koudia', role:'Менеджер парка', appRole:'Менеджер парка', div:'div-1',
+      rights:['Водители','Автопарк','Касса','Штрафы','Рассрочка','Ремонты','Приём-выдача','Путевые листы','Компенсации: одобрение'] },
+    { id:'u-3', name:'Nehemie Koffi', role:'Менеджер парка', appRole:'Менеджер парка', div:'div-3',
+      rights:['Водители','Автопарк','Касса','Штрафы','Рассрочка','Ремонты','Приём-выдача','Путевые листы','Компенсации: одобрение'] },
+    { id:'u-4', name:'Youssef Amrani', role:'Приёмщик на ремонт', appRole:'Приёмщик на ремонт', div:'div-1',
+      rights:['Приём-выдача','Ремонты'] },
+    { id:'u-5', name:'Karim Idrissi', role:'Механик', appRole:'Механик', div:'div-1',
+      rights:['Ремонты'] },
+    { id:'u-6', name:'Samira Ouazzani', role:'Старший диспетчер', appRole:'Диспетчер', div:'div-1',
+      rights:['Водители','Автопарк','Путевые листы'] }
+  ];
+  return DB.users;
+}
+
+function buildFleet(DB, R){
+  R = R || global.GC._seedRng;
+  const plans = [
+    ['Bestune B70','div-1','org-1'], ['Bestune B70','div-1','org-1'],
+    ['Bestune T55','div-1','org-1'], ['Bestune T77','div-2','org-1'],
+    ['MG5','div-2','org-1'], ['Dacia Logan','div-2','org-1'],
+    ['Dacia Logan','div-1','org-1'], ['Dacia Sandero','div-3','org-2'],
+    ['Renault Logan','div-3','org-2'], ['Hyundai Accent','div-3','org-2']
+  ];
+  const statuses = ['В работе','В работе','В работе','В работе','В работе','В работе','В работе','В работе','На сервисе','Свободен'];
+  DB.cars = plans.map((p,i)=>{
+    const [model, div, org] = p;
+    const plateNum = randInt(R, 10000, 99999);
+    const plateLetter = String.fromCharCode(1040 + Math.floor(R()*30)); // cyrillic-ish placeholder, use latin instead below
+    const letters = 'ABCDEFGHJKLMNPRSTUVXYZ';
+    const plate = `${plateNum}-${letters[Math.floor(R()*letters.length)]}-${randInt(R,1,9)}`;
+    const insUntil = i===0 ? shift(-15) : shift(randInt(R,20,300)); // car 0: expired insurance
+    const techUntil = i===1 ? shift(12) : shift(randInt(R,20,300)); // car 1: inspection expiring in 12 days
+    return {
+      id:'car-'+(i+1), plate, model, year: randInt(R,2019,2024), org, div,
+      akpp: pick(R, E.AKPP), gbo: R() < 0.3,
+      status: statuses[i],
+      insurer: pick(R, DB.insurers).id,
+      insUntil: iso(insUntil), techUntil: iso(techUntil),
+      leaseUntil: iso(shift(randInt(R,60,700))),
+      mileage: randInt(R, 15000, 140000),
+      tags: R()<0.25 ? [pick(R, DB.tags).id] : []
+    };
+  });
+  return DB.cars;
+}
+
+function buildDrivers(DB, R){
+  R = R || global.GC._seedRng;
+  const FIRST = ['Rachid','Hassan','Mehdi','Youssef','Omar','Said','Karim','Anas','Yassine','Amine','Hamza','Tariq'];
+  const LAST = ['El Amrani','Bouzid','Chakir','Idrissi','Alaoui','Benali','Tazi','Fassi','Karimi','Bennis','Skalli','Berrada'];
+  const drivers = [];
+  for(let i=0;i<12;i++){
+    const fio = `${LAST[i]} ${FIRST[i]}`;
+    const hasCar = i < 10;
+    const onLeave = i === 10;
+    const fired = i === 11;
+    const div = DB.divs[i % DB.divs.length];
+    const disc = clamp(0.78 + R()*0.24, 0.78, 1.02);
+    const d = {
+      id:'drv-'+(i+1), fio,
+      phone: `+212 6${randInt(R,10,79)} ${randInt(R,100,999)} ${randInt(R,100,999)}`,
+      yid: 'Y'+randInt(R,100000,999999),
+      status: fired ? 'Уволен' : (onLeave ? 'В отпуске' : 'Работает'),
+      ystatus: fired ? 'Нет аккаунта' : 'Работает',
+      form: pick(R, E.FORMS),
+      hired: iso(shift(-randInt(R,90,900))),
+      fired: fired ? iso(shift(-randInt(R,1,30))) : null,
+      rate: randInt(R,300,350) - (randInt(R,300,350)%10 ? 0:0),
+      balY: randInt(R,-200,800),
+      bal: 0,
+      finesBal: 0, dmgBal: 0,
+      org: div.org, div: div.id, disp: DB.disp.find(x=>x.div===div.id || true).id,
+      car: hasCar ? DB.cars[i].id : null,
+      reportDay: randInt(R,1,28),
+      licUntil: iso(shift(randInt(R,-10,400))),
+      instalment: null, limit: randInt(R,1000,3000),
+      platformOrders: randInt(R,200,900), partnerOrders: randInt(R,0,150),
+      blockBelowLimit: R()<0.4,
+      tags: R()<0.3 ? [pick(R, DB.tags).id] : [],
+      notes: [],
+      active: !fired,
+      _disc: Math.round(disc*100)/100
+    };
+    // rate rounded to nearest 10
+    d.rate = Math.round(d.rate/10)*10;
+    drivers.push(d);
+  }
+  DB.drivers = drivers;
+  return drivers;
+}
+
+global.GC = global.GC || {};
+global.GC.buildRefData = buildRefData;
+global.GC.buildUsers = buildUsers;
+global.GC.buildFleet = buildFleet;
+global.GC.buildDrivers = buildDrivers;
+global.GC._seedRng = R;
+
+})(typeof window !== 'undefined' ? window : globalThis);
+
+
+/* ---- 04-cash-ledger.js ---- */
+/* ===== 04. CASH LEDGER & BALANCE RECONCILIATION =====
+   Invariant: every driver balance is DERIVED from the cash ledger, never
+   stored independently — recalcBalances() is the single source of truth. */
+(function(global){
+'use strict';
+const U = global.GC.Utils, C = global.GC.CONST, E = global.GC.ENUM;
+const { shift, iso, esc, uid } = U;
+
+function mkCash(d, at, type, amt, iface, src, who, carry){
+  return {
+    id: uid('cash'),
+    at: new Date(at.getTime ? at.getTime() : at),
+    driver: d.fio, driverId: d.id, div: d.div,
+    iface: iface, who: who || (iface==='Личный кабинет' ? d.fio : (iface==='Система по расписанию' ? 'Система' : 'Менеджер')),
+    src: src, type: type, amt: Math.round(amt*100)/100,
+    before: 0, after: 0,
+    carry: !!carry // true only for the historical-debt carry-forward entry (module 05) —
+                    // excluded from accrued/collected totals, it's not a day's rent or payment
+  };
+}
+
+// Split `total` across `n` days within the last 30 days as natural-looking
+// amounts that sum EXACTLY to total (random cut-point partition + rounding
+// correction on the last slice so no cent is lost).
+function distributeAcrossDays(rnd, total, n, dayFrom, dayTo){
+  const days = [];
+  const span = dayTo - dayFrom;
+  const chosen = new Set();
+  while(chosen.size < Math.min(n, span+1)){
+    chosen.add(dayFrom + Math.floor(rnd()*(span+1)));
+  }
+  const dayList = Array.from(chosen).sort((a,b)=>a-b);
+  const k = dayList.length;
+  // random partition of [0,total] into k positive pieces
+  const cuts = [0];
+  for(let i=0;i<k-1;i++) cuts.push(rnd());
+  cuts.push(1);
+  cuts.sort((a,b)=>a-b);
+  let amounts = [];
+  for(let i=0;i<k;i++) amounts.push((cuts[i+1]-cuts[i])*total);
+  // round to nearest 10, fix drift on the last entry
+  amounts = amounts.map(a => Math.round(a/10)*10);
+  const drift = total - amounts.reduce((s,a)=>s+a,0);
+  amounts[amounts.length-1] += drift;
+  return dayList.map((day,i)=>({ day, amt: amounts[i] }));
+}
+
+function paymentDaysFor(disc){
+  if(disc >= 0.95) return 24;
+  if(disc >= 0.88) return 18;
+  if(disc >= 0.82) return 12;
+  return 7;
+}
+
+const IFACE_POOL = ['Личный кабинет','Терминал','Менеджер'];
+
+function buildCashLedgerBase(DB, rnd){
+  DB.cash = DB.cash || [];
+  const workingDrivers = DB.drivers.filter(d => d.car);
+
+  workingDrivers.forEach(d => {
+    // 1. daily rent accrual, last 30 days (today = day 0)
+    for(let i=-29;i<=0;i++){
+      DB.cash.push(mkCash(d, shift(i), 'Списание', d.rate, 'Система по расписанию', 'Баланс'));
+    }
+    // 2. payment target split across payment days
+    const target = Math.round((d.rate*30*d._disc)/10)*10;
+    const nDays = paymentDaysFor(d._disc);
+    const splits = distributeAcrossDays(rnd, target, nDays, -29, 0);
+    splits.forEach(s => {
+      const iface = IFACE_POOL[Math.floor(rnd()*IFACE_POOL.length)];
+      DB.cash.push(mkCash(d, shift(s.day), 'Пополнение', s.amt, iface, 'Баланс'));
+    });
+    // 3. Yandex balance carried as its own ledger source, single opening entry
+    if(d.balY){
+      DB.cash.push(mkCash(d, shift(-30), d.balY>=0?'Пополнение':'Списание', Math.abs(d.balY),
+        'Система по расписанию', 'Баланс Яндекс', 'Система'));
+    }
+  });
+
+  recalcBalances(DB);
+}
+
+// Push one "Перенос остатка" entry per driver carrying forward the closing
+// balance produced by the 9-month collection model (module 09), then
+// finalize every driver's bal to match it exactly.
+function appendBalanceCarryForward(DB, closingBalanceByDriverId){
+  DB.drivers.filter(d => d.car).forEach(d => {
+    const modelClose = closingBalanceByDriverId[d.id];
+    if(modelClose === undefined) return;
+    const currentFromLedger = sumSrc(DB, d.id, 'Баланс');
+    const delta = modelClose - currentFromLedger; // amount needed to reconcile to the model's number
+    if(Math.round(delta*100) !== 0){
+      DB.cash.push(mkCash(d, shift(-31), delta>=0?'Пополнение':'Списание', Math.abs(delta),
+        'Система по расписанию', 'Баланс', 'Перенос остатка', true));
+    }
+  });
+  recalcBalances(DB);
+}
+
+function sumSrc(DB, driverId, src){
+  return DB.cash.filter(c => c.driverId===driverId && c.src===src)
+    .reduce((s,c) => s + (c.type==='Пополнение' ? c.amt : -c.amt), 0);
+}
+
+// Recompute before/after on every operation in chronological order, and
+// derive every driver's bal / balY / finesBal / dmgBal purely from the ledger.
+function recalcBalances(DB){
+  const sorted = DB.cash.slice().sort((a,b)=> new Date(a.at) - new Date(b.at));
+  const running = {}; // key: driverId|src -> balance
+  sorted.forEach(c => {
+    const key = c.driverId+'|'+c.src;
+    const before = running[key] || 0;
+    const after = before + (c.type==='Пополнение' ? c.amt : -c.amt);
+    c.before = Math.round(before*100)/100;
+    c.after = Math.round(after*100)/100;
+    running[key] = after;
+  });
+  DB.drivers.forEach(d => {
+    d.bal = Math.round((running[d.id+'|Баланс']||0)*100)/100;
+    d.balY = Math.round((running[d.id+'|Баланс Яндекс']||0)*100)/100;
+    d.finesBal = Math.round((running[d.id+'|Баланс штрафов']||0)*100)/100;
+    d.dmgBal = Math.round((running[d.id+'|Баланс повреждений']||0)*100)/100;
+  });
+}
+
+function ledgerTotals(DB){
+  const accrued = DB.cash.filter(c=>c.iface==='Система по расписанию' && c.type==='Списание' && c.src==='Баланс' && !c.carry)
+    .reduce((s,c)=>s+c.amt,0);
+  const collected = DB.cash.filter(c=>c.type==='Пополнение' && c.src==='Баланс' && !c.carry)
+    .reduce((s,c)=>s+c.amt,0);
+  return { accrued, collected, rate: accrued? collected/accrued : 0 };
+}
+
+global.GC.mkCash = mkCash;
+global.GC.buildCashLedgerBase = buildCashLedgerBase;
+global.GC.appendBalanceCarryForward = appendBalanceCarryForward;
+global.GC.recalcBalances = recalcBalances;
+global.GC.sumSrc = sumSrc;
+global.GC.ledgerTotals = ledgerTotals;
+
+})(typeof window !== 'undefined' ? window : globalThis);
+
+
+/* ---- 05-collection-kpi.js ---- */
+/* ===== 05. NINE-MONTH COLLECTION MODEL & MANAGER KPI ===== */
+(function(global){
+'use strict';
+const U = global.GC.Utils, C = global.GC.CONST;
+const { clamp, randInt, pick } = U;
+
+const MONTHS_9 = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь'];
+
+// Runs the forward 8-month (Jan-Aug) bucket simulation per driver, then
+// splices in September verbatim from the real cash ledger (module 04) so
+// the last month always matches the cash-desk figures exactly.
+function runCollectionModel(DB, rnd){
+  const drivers = DB.drivers.filter(d => d.car);
+  const perDriver = {};
+
+  drivers.forEach(d => {
+    let b = [0,0,0,0,0]; // Текущая, до30, 31-60, 61-90, от91
+    let wo = 0, woN = 0;
+    const monthly = [];
+
+    for(let m=0; m<8; m++){
+      b[4]+=b[3]; b[3]=b[2]; b[2]=b[1]; b[1]=b[0]; b[0]=0;
+      const accrual = d.rate*30;
+      b[0]+=accrual;
+
+      let budget = Math.round(d.rate*30*clamp(d._disc + (rnd()-0.5)*0.06, 0.55, 1.05));
+      let paid = 0;
+      for(let i=4;i>=0 && budget>0;i--){
+        const pay = Math.min(b[i], budget);
+        b[i]-=pay; budget-=pay; paid+=pay;
+      }
+      if(rnd() < 0.16){
+        let extra = d.rate * randInt(rnd,2,10);
+        for(let i=4;i>=2 && extra>0;i--){
+          const pay = Math.min(b[i], extra);
+          b[i]-=pay; extra-=pay; paid+=pay;
+        }
+      }
+      let wroteOff = false;
+      if(b[4] > d.rate*3){
+        if(rnd() < 0.62){
+          wo += b[0]+b[1]+b[2]+b[3]+b[4];
+          woN++;
+          b = [0,0,0,0,0];
+          wroteOff = true;
+        }
+      }
+      monthly.push({ month: MONTHS_9[m], accrued: accrual, collected: paid,
+        debtEnd: b.reduce((s,x)=>s+x,0), wroteOff });
+    }
+
+    // September: taken verbatim from the real ledger (already built)
+    const accrual9 = DB.cash.filter(c=>c.driverId===d.id && c.src==='Баланс' &&
+      c.iface==='Система по расписанию' && c.type==='Списание' && !c.carry).reduce((s,c)=>s+c.amt,0);
+    const collected9 = DB.cash.filter(c=>c.driverId===d.id && c.src==='Баланс' &&
+      c.type==='Пополнение' && !c.carry).reduce((s,c)=>s+c.amt,0);
+    monthly.push({ month: MONTHS_9[8], accrued: accrual9, collected: collected9,
+      debtEnd: b.reduce((s,x)=>s+x,0), wroteOff:false });
+
+    perDriver[d.id] = {
+      monthly, buckets: b.slice(), wo, woN,
+      priorDebt: b.reduce((s,x)=>s+x,0) // debt as of end-August, carried into Sept ledger
+    };
+  });
+
+  DB._collection = { perDriver, months: MONTHS_9 };
+  return DB._collection;
+}
+
+// Uses the model's per-driver prior debt to finalize the cash ledger's
+// carry-forward entry (see module 04 appendBalanceCarryForward).
+function applyCollectionToLedger(DB){
+  const model = DB._collection;
+  const targets = {};
+  DB.drivers.filter(d=>d.car).forEach(d=>{
+    const current = global.GC.sumSrc(DB, d.id, 'Баланс');
+    const priorDebt = model.perDriver[d.id] ? model.perDriver[d.id].priorDebt : 0;
+    targets[d.id] = current - priorDebt;
+  });
+  global.GC.appendBalanceCarryForward(DB, targets);
+}
+
+// --- Manager KPI (§8.2) ---
+const KPI_METRICS = [
+  { key:'collection', name:'Собираемость аренды', weight:0.30, plan:0.96, floor:0.90, inverted:false },
+  { key:'utilization', name:'Утилизация автопарка', weight:0.25, plan:0.92, floor:0.85, inverted:false },
+  { key:'idle',        name:'Простой автопарка',    weight:0.15, plan:0.08, floor:0.12, inverted:true  },
+  { key:'fines',       name:'Собираемость штрафов', weight:0.15, plan:0.90, floor:0.80, inverted:false },
+  { key:'baddebt',     name:'Долги уволенных водителей', weight:0.15, plan:0.015, floor:0.03, inverted:true }
+];
+
+function achievement(metric, fact){
+  const { plan, floor, inverted } = metric;
+  if(inverted) return fact > floor ? 0 : clamp(plan/Math.max(fact,1e-6), 0, 1);
+  return fact < floor ? 0 : clamp(fact/plan, 0, 1);
+}
+
+function computeManagerKPI(DB){
+  const managers = {}; // name -> {divs[], drivers[], cars[]}
+  DB.divs.forEach(dv => {
+    managers[dv.manager] = managers[dv.manager] || { name: dv.manager, divs:[], drivers:[], cars:[] };
+    managers[dv.manager].divs.push(dv.id);
+  });
+  DB.drivers.forEach(d => { const m = Object.values(managers).find(m=>m.divs.includes(d.div)); if(m) m.drivers.push(d); });
+  DB.cars.forEach(c => { const m = Object.values(managers).find(m=>m.divs.includes(c.div)); if(m) m.cars.push(c); });
+
+  const model = DB._collection;
+  const result = [];
+  Object.values(managers).forEach(m => {
+    const driverIds = m.drivers.map(d=>d.id);
+    let accruedSum=0, collectedSum=0, wo=0, woN=0;
+    const sparkline = MONTHS_9.map(()=>({accrued:0, collected:0}));
+    driverIds.forEach(id => {
+      const dm = model.perDriver[id]; if(!dm) return;
+      wo += dm.wo; woN += dm.woN;
+      dm.monthly.forEach((mm,i) => { sparkline[i].accrued += mm.accrued; sparkline[i].collected += mm.collected; });
+    });
+    sparkline.forEach(s => { accruedSum += s.accrued; collectedSum += s.collected; });
+    const collectionFact = accruedSum ? collectedSum/accruedSum : 0;
+    const collectionSpark = sparkline.map(s => s.accrued ? s.collected/s.accrued : 0);
+
+    const carsN = m.cars.length || 1;
+    const workingCars = m.cars.filter(c=>c.status==='В работе').length;
+    const utilFact = workingCars / carsN;
+    const idleFact = 1 - utilFact;
+
+    const divFines = DB.fines ? DB.fines.filter(f => m.divs.includes(f.div)) : [];
+    const finesTotal = divFines.reduce((s,f)=>s+f.sum,0);
+    const finesPaid = divFines.filter(f=>f.status==='Оплачен').reduce((s,f)=>s+f.sum,0);
+    const finesFact = finesTotal ? finesPaid/finesTotal : 1;
+
+    const badDebt = Math.max(0, wo - C.DEP_TARGET*woN) * 0.35;
+    const baddebtFact = collectedSum ? badDebt/collectedSum : 0;
+
+    const facts = { collection:collectionFact, utilization:utilFact, idle:idleFact, fines:finesFact, baddebt:baddebtFact };
+    let bonus = 0;
+    const chips = [];
+    // Stop factor uses CURRENT outstanding debt (today's driver balances),
+    // not the cumulative 9-month accrued/collected gap — the two are on
+    // different scales and comparing the latter to a per-day threshold
+    // would trip on almost any dataset.
+    const currentDebt = m.drivers.reduce((s,d)=> s + Math.max(0, -d.bal), 0);
+    const debtPerVehicle = carsN ? currentDebt/carsN : 0;
+    const debtStop = debtPerVehicle > C.RATE*C.DEBT_LIMIT_DAYS;
+    if(debtStop) chips.push('Долг на автомобиль выше нормы — бонус за собираемость обнулён');
+
+    KPI_METRICS.forEach(metric => {
+      const fact = facts[metric.key];
+      const ach = (metric.key==='collection' && debtStop) ? 0 : achievement(metric, fact);
+      bonus += C.BONUS * metric.weight * ach;
+    });
+    const nonReturnPenalty = 0; // no non-returned-vehicle events in demo data
+    const payout = C.FIX_PAY + bonus - nonReturnPenalty;
+    const avgAchievement = KPI_METRICS.reduce((s,metric)=>s+achievement(metric, facts[metric.key]),0)/KPI_METRICS.length;
+
+    result.push({
+      name: m.name, divs: m.divs, facts, sparklines: { collection: collectionSpark },
+      bonus, payout, avgAchievement, chips, wo, woN,
+      driverCount: driverIds.length, carCount: carsN
+    });
+  });
+  return result;
+}
+
+global.GC.runCollectionModel = runCollectionModel;
+global.GC.applyCollectionToLedger = applyCollectionToLedger;
+global.GC.KPI_METRICS = KPI_METRICS;
+global.GC.kpiAchievement = achievement;
+global.GC.computeManagerKPI = computeManagerKPI;
+
+})(typeof window !== 'undefined' ? window : globalThis);
+
+
+/* ---- 06-secondary-collections.js ---- */
+/* ===== 06. SECONDARY COLLECTIONS (fines, instalments, comps, parts,
+   deposits, payouts, contracts, incidents, leases, tickets, mailings,
+   pnl, history, dupes) ===== */
+(function(global){
+'use strict';
+const U = global.GC.Utils, C = global.GC.CONST, E = global.GC.ENUM;
+const { rng, pick, pickN, randInt, clamp, uid, shift, iso, fmtD } = U;
+
+function workingDrivers(DB){ return DB.drivers.filter(d=>d.car); }
+
+function buildFines(DB, R){
+  const wd = workingDrivers(DB);
+  const chosen = pickN(R, wd, 9);
+  DB.fines = chosen.map((d,i) => {
+    const car = DB.cars.find(c=>c.id===d.car);
+    const violAt = shift(-randInt(R,1,120));
+    const status = i<5 ? 'Оплачен' : (i<8 ? 'Не оплачен' : 'Оспаривается');
+    return {
+      id: 'fine-'+(i+1), doc: 'ШТ-'+randInt(R,100000,999999),
+      viol: pick(R, E.VIOL), violAt: iso(violAt), docAt: iso(shift(-randInt(R,1,110))),
+      sum: randInt(R,3,20)*100, discountTill: iso(shift(-randInt(R,-10,90))),
+      car: car.plate, org: d.org, div: d.div,
+      driver: d.fio, driverId: d.id, status,
+      bank: pick(R, DB.banks).name
+    };
+  });
+}
+
+function buildInstalments(DB, R){
+  const wd = pickN(R, workingDrivers(DB), 3);
+  DB.instal = wd.map((d,i) => {
+    const total = randInt(R,5,20)*300;
+    const left = Math.round(total*R()*0.7);
+    const car = DB.cars.find(c=>c.id===d.car);
+    return {
+      id:'ins-plan-'+(i+1), driver: d.fio, driverId: d.id, car: car.plate, div: d.div,
+      kind: pick(R,['Повреждение','Недостача топлива','Штраф']),
+      total, left, perDay: Math.round(total/randInt(R,10,30)),
+      opened: iso(shift(-randInt(R,10,90))), status: left>0 ? 'Активна':'Закрыта',
+      note: 'Рассрочка по возмещению'
+    };
+  });
+}
+
+function buildCompensations(DB, R){
+  const wd = pickN(R, workingDrivers(DB), 5);
+  DB.comps = wd.map((d,i) => {
+    const car = DB.cars.find(c=>c.id===d.car);
+    const reason = pick(R, DB.reasons);
+    const status = i<3 ? 'Одобрено' : (i<4?'На одобрении':'Отказано');
+    return {
+      id:'comp-'+(i+1), at: iso(shift(-randInt(R,1,60))), driver: d.fio, driverId: d.id,
+      car: car.plate, div: d.div, kind: reason.name, reason: reason.name,
+      sum: Math.min(reason.limit, randInt(R,100,reason.limit)),
+      by: 'Мouad Koudia', status,
+      note: 'Запрос на компенсацию: '+reason.name,
+      decidedBy: status!=='На одобрении' ? 'Курбан Керимов' : null,
+      decidedAt: status!=='На одобрении' ? iso(shift(-randInt(R,0,50))) : null,
+      comment: status==='Отказано' ? 'Недостаточно подтверждающих документов' :
+               (status==='Одобрено' ? 'Подтверждено, начислено на баланс' : '')
+    };
+  });
+}
+
+function buildOrders(DB, R){ // waybill / vehicle requests
+  const wd = pickN(R, workingDrivers(DB), 8);
+  DB.orders = wd.map((d,i) => {
+    const car = DB.cars.find(c=>c.id===d.car);
+    return {
+      id:'req-'+(i+1), no: 'ЗВ-'+(2000+i), driver: d.fio, driverId: d.id,
+      car: car.plate, div: d.div, org: d.org,
+      type: pick(R,['Путевой лист','Заявка на авто']),
+      status: pick(R,['Оформлен','В обработке','Отклонён']),
+      createdAt: iso(shift(-randInt(R,0,20)))
+    };
+  });
+}
+
+function buildParts(DB, R){
+  const NAMES = [
+    ['ART-1001','Тормозные колодки передние',120,20,'Bestune Parts'],
+    ['ART-1002','Масляный фильтр',60,15,'Bestune Parts'],
+    ['ART-1003','Воздушный фильтр',55,10,'Bestune Parts'],
+    ['ART-1004','Свеча зажигания',18,40,'Auto Maroc'],
+    ['ART-1005','Аккумулятор 60Ah',12,3,'Auto Maroc'],
+    ['ART-1006','Амортизатор передний',22,6,'Dacia Original'],
+    ['ART-1007','Тормозной диск',30,8,'Dacia Original'],
+    ['ART-1008','Ремень ГРМ',10,4,'Dacia Original'],
+    ['ART-1009','Лампа фары H4',80,25,'Auto Maroc'],
+    ['ART-1010','Щётки стеклоочистителя',65,18,'Auto Maroc'],
+    ['ART-1011','Масло моторное 5W30 (л)',200,60,'Total Maroc'],
+    ['ART-1012','Шина 185/65 R15',16,4,'Tire Center']
+  ];
+  DB.parts = NAMES.map(([art,name,stock,min,sup],i)=>({
+    art, name, stock, min, price: randInt(R,50,900), sup
+  }));
+}
+
+function buildService(DB, R){
+  const wd = pickN(R, workingDrivers(DB), 5);
+  DB.service = wd.map((d,i) => {
+    const car = DB.cars.find(c=>c.id===d.car);
+    return { id:'svc-'+(i+1), at: iso(shift(-randInt(R,1,200))), car: car.plate,
+      driver: d.fio, div: d.div, kind: pick(R,['ТО','Шиномонтаж','Диагностика']),
+      note: 'Legacy запись до перехода на наряд-заказы' };
+  });
+}
+
+function buildDeposits(DB, R){
+  DB.deposits = workingDrivers(DB).map(d => {
+    const car = DB.cars.find(c=>c.id===d.car);
+    const target = C.DEP_TARGET;
+    const amount = clamp(target + randInt(R,-400,400), 0, target+600);
+    return { driverId:d.id, driver:d.fio, div:d.div, car: car.plate,
+      target, amount, perDay: randInt(R,20,60), last: iso(shift(-randInt(R,0,20))) };
+  });
+}
+
+function buildPayouts(DB, R){
+  const wd = workingDrivers(DB);
+  DB.payouts = [];
+  for(let i=0;i<34;i++){
+    const d = pick(R, wd);
+    const trips = randInt(R,3,40);
+    const cost = randInt(R,30,1200);
+    const dur = randInt(R,2,200);
+    const perHour = randInt(R,1,8);
+    const flags = [];
+    if(cost > C.AF.maxCost) flags.push('Стоимость поездки выше нормы');
+    if(dur > C.AF.maxDur) flags.push('Поездка длиннее нормы');
+    if(dur < C.AF.minDur) flags.push('Поездка короче нормы');
+    if(perHour > C.AF.maxPerHour) flags.push('Слишком много поездок в час');
+    const status = flags.length ? (R()<0.5?'На проверке':'Отклонена') : 'Выплачена';
+    DB.payouts.push({
+      id:'pay-'+(i+1), at: iso(shift(-randInt(R,0,30))), driverId:d.id, driver:d.fio, div:d.div,
+      amount: randInt(R,100,2500), method: pick(R,['Карта','Наличные']),
+      trips, cost, dur, perHour, flags, status
+    });
+  }
+}
+
+function buildContracts(DB, R){
+  const drivers = pickN(R, DB.drivers, Math.min(30, DB.drivers.length));
+  const pool = []; while(pool.length<30) pool.push(pick(R, DB.drivers));
+  DB.contracts = pool.map((d,i) => ({
+    id:'ctr-'+(i+1), driverId:d.id, driver:d.fio, div:d.div,
+    type: pick(R,['Договор аренды','Доп. соглашение','Согласие на обработку данных']),
+    car: d.car ? DB.cars.find(c=>c.id===d.car).plate : '—',
+    at: iso(shift(-randInt(R,1,300))), until: iso(shift(randInt(R,30,400))),
+    status: pick(R, E.CONTRACT_STATUS), sign: R()<0.7?'ЭЦП':'Бумажный'
+  }));
+}
+
+function buildIncidents(DB, R){
+  const wd = pickN(R, workingDrivers(DB), 11); const pool=[]; while(pool.length<11) pool.push(pick(R,workingDrivers(DB)));
+  DB.incidents = pool.map((d,i) => {
+    const car = DB.cars.find(c=>c.id===d.car);
+    return {
+      id:'inc-'+(i+1), at: iso(shift(-randInt(R,1,250))), car: car.plate, carId: car.id,
+      driver: d.fio, driverId: d.id, div: d.div,
+      type: pick(R,['ДТП','Угон попытка','Повреждение на стоянке','Страховой случай']),
+      guilty: pick(R,['Водитель','Третье лицо','Не установлен']),
+      sum: randInt(R,1000,25000), insurer: pick(R, DB.insurers).name,
+      claim: 'CLM-'+randInt(R,10000,99999), cover: R()<0.6?'Покрыто':'Не покрыто',
+      status: pick(R,['Открыт','На рассмотрении','Закрыт'])
+    };
+  });
+}
+
+function buildLeases(DB, R){
+  DB.leases = DB.cars.slice(0,10).map((car,i) => {
+    const months = randInt(R,24,60);
+    const paid = randInt(R,1,months-1);
+    const monthly = randInt(R,2500,4500);
+    return {
+      carId: car.id, car: car.plate, model: car.model, org: car.org, div: car.div,
+      lessor: pick(R,['Wafabail','BMCI Leasing','Maghrebail']),
+      monthly, months, paid, left: months-paid,
+      total: monthly*months, rest: monthly*(months-paid),
+      next: iso(shift(randInt(R,1,28))), buyout: Math.round(monthly*3.2),
+      status: paid>=months ? 'Выкуплен' : 'Активен'
+    };
+  });
+}
+
+function buildTickets(DB, R){
+  const wd = workingDrivers(DB); const pool=[]; while(pool.length<22) pool.push(pick(R,wd));
+  const THEMES = ['Вопрос по балансу','Проблема с автомобилем','Штраф','Компенсация','Депозит','График смен','Прочее'];
+  DB.tickets = pool.map((d,i) => ({
+    id:'tk-'+(i+1), at: iso(shift(-randInt(R,0,40))), driverId:d.id, driver:d.fio, div:d.div,
+    theme: pick(R, THEMES), text: 'Обращение по теме: '+pick(R,THEMES),
+    mgr: 'Мouad Koudia', status: pick(R,['Новое','В работе','Решено']),
+    sla: randInt(R,1,48)+' ч'
+  }));
+}
+
+function buildMailings(DB, R){
+  DB.mailings = [
+    { id:'ml-1', name:'Напоминание об оплате аренды', channel:'SMS', sent: 340, opened: 210, at: iso(shift(-5)) },
+    { id:'ml-2', name:'Акция по депозитам', channel:'Push', sent: 120, opened: 60, at: iso(shift(-12)) },
+    { id:'ml-3', name:'Обновление правил компенсаций', channel:'Email', sent: 12, opened: 9, at: iso(shift(-20)) },
+    { id:'ml-4', name:'Плановое ТО — запись', channel:'SMS', sent: 80, opened: 55, at: iso(shift(-2)) }
+  ];
+}
+
+function buildPnl(DB, R){
+  const CATS_IN = ['Аренда','Компенсация от страховой','Продажа авто'];
+  const CATS_OUT = ['Ремонт','Запчасти','ФОТ менеджеров','Лизинг','Страхование','Штрафы (компания)'];
+  DB.pnl = [];
+  for(let i=0;i<42;i++){
+    const type = R()<0.55 ? 'Доход':'Расход';
+    const cat = type==='Доход' ? pick(R,CATS_IN) : pick(R,CATS_OUT);
+    const car = pick(R, DB.cars);
+    DB.pnl.push({
+      id:'pnl-'+(i+1), at: iso(shift(-randInt(R,0,180))), type, cat,
+      amount: randInt(R,500,15000), org: car.org, div: car.div, car: car.plate,
+      note: cat
+    });
+  }
+}
+
+function buildHistory(DB, R){
+  DB.history = [];
+  const who = ['Курбан Керимов','Мouad Koudia','Nehemie Koffi'];
+  for(let i=0;i<10;i++){
+    DB.history.push({
+      id:'hist-'+(i+1), at: iso(shift(-randInt(R,0,60))), who: pick(R,who),
+      section: pick(R,['Водители','Автопарк','Касса','Штрафы']),
+      field: 'status', obj: pick(R,DB.drivers).fio,
+      from: 'Работает', to: pick(R,['В отпуске','Заблокирован'])
+    });
+  }
+}
+
+function buildImportsAndComments(DB){
+  DB.imports = [];
+  DB.comments = [];
+}
+
+function buildDupes(DB, R){
+  const a = DB.drivers[0], b = { ...DB.drivers[1], fio: DB.drivers[0].fio };
+  DB.dupes = [{ id:'dupe-1', a: a.id, b: DB.drivers[1].id, reason:'Совпадение ФИО', fioA:a.fio, fioB:DB.drivers[1].fio }];
+}
+
+global.GC.buildFines = buildFines;
+global.GC.buildInstalments = buildInstalments;
+global.GC.buildCompensations = buildCompensations;
+global.GC.buildOrders = buildOrders;
+global.GC.buildParts = buildParts;
+global.GC.buildService = buildService;
+global.GC.buildDeposits = buildDeposits;
+global.GC.buildPayouts = buildPayouts;
+global.GC.buildContracts = buildContracts;
+global.GC.buildIncidents = buildIncidents;
+global.GC.buildLeases = buildLeases;
+global.GC.buildTickets = buildTickets;
+global.GC.buildMailings = buildMailings;
+global.GC.buildPnl = buildPnl;
+global.GC.buildHistory = buildHistory;
+global.GC.buildImportsAndComments = buildImportsAndComments;
+global.GC.buildDupes = buildDupes;
+global.GC.workingDrivers = workingDrivers;
+
+})(typeof window !== 'undefined' ? window : globalThis);
+
+
+/* ---- 07-repairs.js ---- */
+/* ===== 07. REPAIR WORKFLOW (7 phases), BOOKING CAPACITY, HANDOVER,
+   SHIFTS, INSPECTIONS ===== */
+(function(global){
+'use strict';
+const U = global.GC.Utils, C = global.GC.CONST, E = global.GC.ENUM;
+const { pick, pickN, randInt, clamp, uid, shift, iso, fmtD, NOW, TODAY } = U;
+
+const SHOPS = {
+  'Плановое ТО':        { perDay:6, perSlot:2, bay:'Пост 1 · ТО' },
+  'Слесарные работы':   { perDay:4, perSlot:1, bay:'Пост 2 · слесарный' },
+  'Не заводится':       { perDay:4, perSlot:1, bay:'Пост 2 · слесарный' },
+  'Прочее':             { perDay:4, perSlot:1, bay:'Пост 2 · слесарный' },
+  'Шиномонтаж':         { perDay:4, perSlot:1, bay:'Пост 3 · универсальный' },
+  'Электрика':          { perDay:3, perSlot:1, bay:'Пост 3 · универсальный' },
+  'Кондиционер':        { perDay:3, perSlot:1, bay:'Пост 3 · универсальный' },
+  'Кузов':              { perDay:2, perSlot:1, bay:'Пост 3 · универсальный' }
+};
+const MECHANICS = [
+  { name:'Rachid El Amrani', spec:['Слесарные работы','Не заводится','Прочее','Кузов'], salary:6800 },
+  { name:'Hassan Bouzid',    spec:['Плановое ТО','Шиномонтаж'], salary:6200 },
+  { name:'Mehdi Chakir',     spec:['Электрика','Кондиционер'], salary:7000 }
+];
+function mechanicFor(reason){ return (MECHANICS.find(m=>m.spec.includes(reason)) || MECHANICS[0]).name; }
+
+// Booking slots: 10:00-18:00 every 30 min, lunch 12:00-13:00 closed
+function daySlots(){
+  const out = [];
+  for(let h=10; h<18; h++){
+    for(const mm of [0,30]){
+      if(h===12) continue; // lunch closed
+      out.push(U.pad2(h)+':'+U.pad2(mm));
+    }
+  }
+  return out;
+}
+const SLOT_CYCLE_MIN = 40; // scheduled-service cycle: 35 work + 5 handover
+
+// Intake window: phase 0 -> 1 only from 30 min before the booked slot to
+// 60 min after it. `slotAt` is a Date built from slotDay+slot.
+function intakeWindow(slotAt){
+  return { from: new Date(slotAt.getTime() - 30*60000), to: new Date(slotAt.getTime() + 60*60000) };
+}
+function slotToDate(slotDay, slot){
+  const [h,m] = slot.split(':').map(Number);
+  const d = new Date(slotDay.getTime ? slotDay.getTime() : new Date(slotDay).getTime());
+  d.setHours(h,m,0,0);
+  return d;
+}
+function canStartIntake(order, now){
+  now = now || NOW;
+  const slotAt = slotToDate(new Date(order.slotDay), order.slot);
+  const w = intakeWindow(slotAt);
+  return now >= w.from && now <= w.to;
+}
+function intakeWindowLabel(order){
+  const slotAt = slotToDate(new Date(order.slotDay), order.slot);
+  const w = intakeWindow(slotAt);
+  return U.fmtDT(w.from) + '–' + U.fmtDT(w.to);
+}
+
+const REASON_JOBS = {
+  'Плановое ТО': [['Замена масла',0.5],['Замена фильтров',0.5],['Диагностика',1]],
+  'Слесарные работы': [['Замена колодок',1],['Регулировка развал-схождения',1]],
+  'Не заводится': [['Диагностика электрики',1],['Замена аккумулятора',0.5]],
+  'Прочее': [['Общий осмотр',1]],
+  'Шиномонтаж': [['Замена шин',0.5],['Балансировка',0.5]],
+  'Электрика': [['Диагностика проводки',1.5],['Замена лампы',0.3]],
+  'Кондиционер': [['Заправка фреона',1],['Диагностика компрессора',1]],
+  'Кузов': [['Рихтовка',3],['Покраска',2]]
+};
+
+function buildRepairOrders(DB, R){
+  const wd = global.GC.workingDrivers(DB);
+  const reasons = Object.keys(SHOPS);
+  const phases = [0,1,2,3,4,5,6, 0,1,2,3,4,5,6, 1]; // 15 orders, all phases covered
+  DB.orders2 = phases.map((phase,i) => {
+    const d = pick(R, wd);
+    const car = DB.cars.find(c=>c.id===d.car);
+    const reason = reasons[i % reasons.length];
+    const jobs = REASON_JOBS[reason];
+    const isDemo = i===0; // the walkable demo order, booked right now
+    const isBlocked = i===7; // demonstrates the intake window blocking an out-of-window order
+    let slotDay, slot;
+    if(isDemo){ slotDay = TODAY; slot = U.pad2(NOW.getHours())+':'+(NOW.getMinutes()<30?'00':'30'); }
+    else if(isBlocked){ slotDay = TODAY; slot = '09:00'; } // far outside the ±window from 14:00 "now"
+    else { slotDay = shift(randInt(R,-20,10)); slot = pick(R, daySlots()); }
+
+    const prio = pick(R, E.PRIO);
+    const mech = mechanicFor(reason);
+    const works = jobs.map(([name,h]) => ({ name, h, done: phase>=4 }));
+    const parts = phase>=2 ? [{ art: pick(R,DB.parts).art, name: pick(R,DB.parts).name, qty: randInt(R,1,3),
+        price: randInt(R,50,600), issued: phase>=3, issuedBy: phase>=3?'Кладовщик':null,
+        issuedAt: phase>=3 ? iso(shift(-randInt(R,0,5))) : null }] : [];
+
+    return {
+      no: 'НЗ-' + (1040+i), car: car.plate, model: car.model, carId: car.id,
+      driver: d.fio, driverId: d.id, div: d.div, org: d.org,
+      reason, prio, slotDay: iso(slotDay), slot,
+      mileage: car.mileage, odoPhoto: phase>=1 ? 'odo-'+car.id+'.jpg' : null,
+      desc: 'Обращение: '+reason,
+      phase,
+      mech: phase>=2 ? mech : null,
+      post: phase>=2 ? SHOPS[reason].bay : null,
+      receiver: phase>=1 ? 'Приёмщик' : null,
+      fuel: phase>=1 ? randInt(R,10,100) : null,
+      fuelPhoto: phase>=1 ? 'fuel-'+car.id+'.jpg' : null,
+      arrivedAt: phase>=1 ? iso(shift(-randInt(R,0,5))) : null,
+      works, parts,
+      photoAfter: phase>=4 ? 'after-'+car.id+'.jpg' : null,
+      checkedBy: phase>=5 ? 'Приёмщик на ремонт' : null,
+      timer: { run:false, min: phase>=2 && phase<4 ? randInt(R,10,180) : 0, startedAt: null },
+      createdAt: iso(shift(-randInt(R,0,10))),
+      closedAt: phase===6 ? iso(shift(-randInt(R,0,3))) : null,
+      returns: R()<0.15 ? 1 : 0,
+      notified: phase===6,
+      demoOpen: isDemo,
+      demoBlocked: isBlocked
+    };
+  });
+}
+
+// Advance a repair order one phase forward, enforcing the gates from §7.
+function canAdvance(order){
+  switch(order.phase){
+    case 0: return canStartIntake(order) ? {ok:true} : {ok:false, reason:'Приёмка доступна только в окно '+intakeWindowLabel(order)};
+    case 1: return (order.fuel!=null && order.fuelPhoto) ? {ok:true} : {ok:false, reason:'Укажите уровень топлива и фото бака'};
+    case 2: return (order.works.length>0 && order.mech && order.post) ? {ok:true} : {ok:false, reason:'Нужна минимум одна работа, механик и пост'};
+    case 3: return order.parts.every(p=>p.issued) ? {ok:true} : {ok:false, reason:'Не все запчасти выданы под подпись'};
+    case 4: return (order.works.every(w=>w.done) && order.photoAfter) ? {ok:true} : {ok:false, reason:'Отметьте все работы и приложите фото после ремонта'};
+    case 5: return order.checkedBy ? {ok:true} : {ok:false, reason:'Нужна проверка качества перед выдачей'};
+    default: return {ok:false, reason:'Наряд уже закрыт'};
+  }
+}
+function advancePhase(order){
+  const chk = canAdvance(order);
+  if(!chk.ok) return chk;
+  order.phase += 1;
+  if(order.phase===6) order.closedAt = iso(NOW);
+  return {ok:true};
+}
+function returnPhase(order){
+  if(order.phase<=0) return {ok:false, reason:'Уже на первой фазе'};
+  order.phase -= 1;
+  order.returns = (order.returns||0)+1;
+  return {ok:true};
+}
+
+// --- Handover acts (приём/выдача) ---
+function buildActs(DB, R){
+  const wd = global.GC.workingDrivers(DB);
+  DB.acts = [];
+  for(let i=0;i<9;i++){
+    const d = pick(R, wd);
+    const car = DB.cars.find(c=>c.id===d.car);
+    const kind = i%2===0 ? 'Выдача' : 'Возврат';
+    const dmgZones = R()<0.3 ? [{ zone: pick(R,DB.tariffs).zone, type: pick(R,['Царапина','Скол']) }] : [];
+    DB.acts.push({
+      id:'act-'+(i+1), kind, car: car.plate, model: car.model, driver: d.fio, driverId: d.id, div: d.div,
+      at: iso(shift(-randInt(R,0,60))), by: pick(R,['Мouad Koudia','Nehemie Koffi']),
+      photos: randInt(R,2,6), dmg: dmgZones, equip: ['Аптечка','Огнетушитель','Знак аварийной остановки'],
+      fuel: randInt(R,20,100), mileage: car.mileage, signed: R()<0.85
+    });
+  }
+}
+
+// --- Shifts ---
+function buildShifts(DB, R){
+  const wd = global.GC.workingDrivers(DB);
+  DB.shifts = [];
+  let n = 0;
+  for(let day=-11; day<=0 && n<118; day++){
+    wd.forEach(d => {
+      if(n>=118) return;
+      const car = DB.cars.find(c=>c.id===d.car);
+      const startH = randInt(R,6,10), dur = randInt(R,6,12);
+      const status = day===0 ? pick(R,['Открыта','Закрыта']) : (R()<0.08?'Просрочена':'Закрыта');
+      DB.shifts.push({
+        id:'sh-'+(++n), driverId:d.id, driver:d.fio, car: car.plate, div: d.div,
+        date: iso(shift(day)), start: U.pad2(startH)+':00', end: U.pad2((startH+dur)%24)+':00',
+        hours: dur, orders: randInt(R,4,25), revenue: randInt(R,300,1800),
+        waybill: R()<0.9, wbIssued: R()<0.9, inspect: R()<0.85, status
+      });
+    });
+  }
+}
+
+// --- Inspections ---
+function buildInspections(DB, R){
+  const wd = global.GC.workingDrivers(DB);
+  DB.inspections = [];
+  for(let i=0;i<26;i++){
+    const d = pick(R, wd);
+    const car = DB.cars.find(c=>c.id===d.car);
+    const nDmg = R()<0.4 ? randInt(R,1,2) : 0;
+    const dmg = [];
+    for(let k=0;k<nDmg;k++){ const t = pick(R, DB.tariffs); dmg.push({ zone:t.zone, type:t.type, price:t.price }); }
+    const total = dmg.reduce((s,x)=>s+x.price,0);
+    DB.inspections.push({
+      id:'insp-'+(i+1), at: iso(shift(-randInt(R,0,90))), car: car.plate, carId: car.id,
+      driver: d.fio, driverId: d.id, div: d.div,
+      kind: pick(R,['Плановый осмотр','Осмотр при возврате','Внеплановый']),
+      mech: pick(R, MECHANICS).name, photos: randInt(R,2,8),
+      dmg, total, charged: total>0 && R()<0.7
+    });
+  }
+}
+
+global.GC.SHOPS = SHOPS; global.GC.MECHANICS = MECHANICS;
+global.GC.daySlots = daySlots; global.GC.mechanicFor = mechanicFor;
+global.GC.canStartIntake = canStartIntake; global.GC.intakeWindowLabel = intakeWindowLabel;
+global.GC.slotToDate = slotToDate;
+global.GC.buildRepairOrders = buildRepairOrders;
+global.GC.canAdvance = canAdvance; global.GC.advancePhase = advancePhase; global.GC.returnPhase = returnPhase;
+global.GC.buildActs = buildActs;
+global.GC.buildShifts = buildShifts;
+global.GC.buildInspections = buildInspections;
+
+})(typeof window !== 'undefined' ? window : globalThis);
+
+
+/* ---- 08-debt-matrix.js ---- */
+/* ===== 08. DEBT MATRIX BY DAY (§8.3) =====
+   Driver x day grid. Reconstructed from the cash ledger's own chronological
+   before/after (already exact — see module 04), which is equivalent to the
+   spec's "undo the day's operations, add back rent, subtract earnings"
+   approach but avoids re-deriving numbers that are already ground truth.
+   Today's column is therefore guaranteed to equal the driver's ledger
+   balance shown in "Водители". */
+(function(global){
+'use strict';
+const U = global.GC.Utils;
+const { iso, shift } = U;
+
+function debtMatrix(DB, days){
+  days = days || 30;
+  const wd = global.GC.workingDrivers(DB);
+  const byDriverDay = {}; // driverId -> { 'YYYY-MM-DD': afterBalance }
+  wd.forEach(d => byDriverDay[d.id] = {});
+
+  const sorted = DB.cash.filter(c=>c.src==='Баланс').slice().sort((a,b)=> new Date(a.at)-new Date(b.at));
+  sorted.forEach(c => {
+    if(!byDriverDay[c.driverId]) return;
+    byDriverDay[c.driverId][iso(new Date(c.at))] = c.after;
+  });
+
+  const dayList = [];
+  for(let i=-(days-1); i<=0; i++) dayList.push(iso(shift(i)));
+
+  return wd.map(d => {
+    let carry = 0;
+    const cells = dayList.map(day => {
+      if(byDriverDay[d.id][day] !== undefined) carry = byDriverDay[d.id][day];
+      return { day, balance: Math.round(carry*100)/100 };
+    });
+    return { driverId: d.id, driver: d.fio, div: d.div, cells };
+  });
+}
+
+function agingBucket(negDays){
+  if(negDays <= 0) return null;
+  if(negDays <= 7) return '1–7';
+  if(negDays <= 14) return '8–14';
+  if(negDays <= 29) return '15–29';
+  return '30+';
+}
+
+// For a driver row, how many consecutive days (ending today) has the
+// balance stayed negative.
+function daysInDebt(cells){
+  let n = 0;
+  for(let i=cells.length-1; i>=0; i--){
+    if(cells[i].balance < 0) n++; else break;
+  }
+  return n;
+}
+
+global.GC.debtMatrix = debtMatrix;
+global.GC.agingBucket = agingBucket;
+global.GC.daysInDebt = daysInDebt;
+
+})(typeof window !== 'undefined' ? window : globalThis);
+
+
+/* ---- 09-dispatch.js ---- */
+/* ===== 09. DISPATCH MAP =====
+   Synthetic movement feed standing in for a real GPS/telematics provider.
+   Seam: replace DISP.feed()/DISP.tick() with the provider's live stream —
+   everything else on the dispatch screen (map, list, filters) is untouched. */
+(function(global){
+'use strict';
+const U = global.GC.Utils;
+const { rng, randInt } = U;
+
+// Rough bounding boxes for demo purposes only (not real basemap tiles).
+const CITY_BOX = {
+  'Касабланка': { lat:[33.53,33.60], lng:[-7.65,-7.55] },
+  'Рабат':      { lat:[34.00,34.04], lng:[-6.86,-6.79] }
+};
+
+function buildDispatch(DB, R){
+  const wd = global.GC.workingDrivers(DB);
+  DB._dispatch = wd.map(d => {
+    const div = DB.divs.find(x=>x.id===d.div);
+    const box = CITY_BOX[div.city] || CITY_BOX['Касабланка'];
+    const lat = box.lat[0] + R()*(box.lat[1]-box.lat[0]);
+    const lng = box.lng[0] + R()*(box.lng[1]-box.lng[0]);
+    return {
+      driverId: d.id, driver: d.fio, car: DB.cars.find(c=>c.id===d.car).plate,
+      city: div.city, lat, lng, heading: Math.floor(R()*360),
+      status: R()<0.7 ? 'На линии' : 'Свободен', speed: randInt(R,0,80)
+    };
+  });
+}
+
+// Advances every vehicle a small random step — call on an interval from the
+// UI layer if a live-feel map is wanted. Pure function of current state, no
+// external randomness source stored, so it's safe to call repeatedly.
+function tickDispatch(DB){
+  (DB._dispatch||[]).forEach(p => {
+    const rad = p.heading * Math.PI/180;
+    p.lat += Math.cos(rad)*0.0006;
+    p.lng += Math.sin(rad)*0.0006;
+    p.heading = (p.heading + (Math.random()*20-10) + 360) % 360;
+    p.speed = Math.max(0, Math.min(90, p.speed + Math.round(Math.random()*10-5)));
+  });
+  return DB._dispatch;
+}
+
+global.GC.buildDispatch = buildDispatch;
+global.GC.tickDispatch = tickDispatch;
+
+})(typeof window !== 'undefined' ? window : globalThis);
+
+
+/* ---- 10-bootstrap.js ---- */
+/* ===== 10. BOOTSTRAP — assembles the whole in-memory DB in dependency order ===== */
+(function(global){
+'use strict';
+const G = global.GC;
+const { rng } = G.Utils;
+
+const SEED = 20260908;
+
+function buildDB(){
+  const R = rng(SEED);
+  const DB = G.buildRefData();
+  G.buildUsers(DB);
+  G.buildFleet(DB, R);
+  G.buildDrivers(DB, R);
+
+  G.buildCashLedgerBase(DB, R);
+
+  G.buildFines(DB, R);
+  G.buildInstalments(DB, R);
+  G.buildCompensations(DB, R);
+  G.buildOrders(DB, R);
+  G.buildParts(DB, R);
+  G.buildService(DB, R);
+  G.buildDeposits(DB, R);
+  G.buildPayouts(DB, R);
+  G.buildContracts(DB, R);
+  G.buildIncidents(DB, R);
+  G.buildLeases(DB, R);
+  G.buildTickets(DB, R);
+  G.buildMailings(DB, R);
+  G.buildPnl(DB, R);
+  G.buildHistory(DB, R);
+  G.buildImportsAndComments(DB);
+  G.buildDupes(DB, R);
+
+  G.buildRepairOrders(DB, R);
+  G.buildActs(DB, R);
+  G.buildShifts(DB, R);
+  G.buildInspections(DB, R);
+  G.buildDispatch(DB, R);
+
+  G.runCollectionModel(DB, R);
+  G.applyCollectionToLedger(DB);
+  DB._kpi = G.computeManagerKPI(DB);
+
+  return DB;
+}
+
+global.GC.buildDB = buildDB;
+global.GC.SEED = SEED;
+
+})(typeof window !== 'undefined' ? window : globalThis);
+
+
+/* ---- 11-state-components.js ---- */
+/* ===== 11. STATE & REUSABLE UI COMPONENTS ===== */
+(function(global){
+'use strict';
+const U = global.GC.Utils, C = global.GC.CONST, E = global.GC.ENUM;
+const { esc, money, cur, pctS, num, fmtD, fmtDT } = U;
+
+// ---------------- Global state ----------------
+const S = {
+  DB: null,
+  side: false,      // drawer open?
+  sec: 'dash', tab: 0,
+  role: 'Кантри-менеджер',
+  userId: 'u-1',
+  lang: 'ru',
+  filters: {},       // sec -> { field: value }
+  modal: null,       // { title, body(html)|fields, onSave, form:{} }
+  toastMsg: null,
+  menuOpen: {},      // group -> bool
+  _lastRenderKey: ''
+};
+
+function currentUser(){ return S.DB.users.find(u=>u.id===S.userId) || S.DB.users[0]; }
+
+function hasRight(right){
+  const u = currentUser();
+  if(!u) return false;
+  return u.rights.includes('Все разделы') || u.rights.includes(right);
+}
+function canSeeSection(sec){
+  const sections = global.GC.ROLE_SECTIONS[S.role] || [];
+  return sections.includes(sec);
+}
+
+// ---------------- Toast ----------------
+function toast(msg){
+  S.toastMsg = msg;
+  global.GC.render();
+  setTimeout(()=>{ S.toastMsg = null; const el = document.getElementById('toast'); if(el) el.classList.remove('show'); }, 2600);
+}
+
+// ---------------- Table component ----------------
+function tableHTML(cols, rows, opts){
+  opts = opts || {};
+  const title = opts.title || '';
+  const pageSize = opts.pageSize || 20;
+  const page = opts.page || 0;
+  const total = rows.length;
+  const shown = rows.slice(page*pageSize, page*pageSize+pageSize);
+  let html = '<div class="card table-card">';
+  if(title || opts.actions){
+    html += '<div class="card-head"><h3>'+esc(title)+'</h3><div class="card-actions">'+(opts.actions||'')+'</div></div>';
+  }
+  html += '<div class="table-scroll"><table class="tbl"><thead><tr>';
+  cols.forEach(c => html += '<th'+(c.width?' style="width:'+c.width+'"':'')+'>'+esc(c.label)+'</th>');
+  html += '</tr></thead><tbody>';
+  if(shown.length===0){
+    html += '<tr><td colspan="'+cols.length+'" class="empty-state">Нет данных</td></tr>';
+  } else {
+    shown.forEach(row => {
+      html += '<tr'+(opts.rowAttrs?opts.rowAttrs(row):'')+'>';
+      cols.forEach(c => html += '<td>'+(c.render ? c.render(row) : esc(row[c.key])) +'</td>');
+      html += '</tr>';
+    });
+  }
+  html += '</tbody></table></div>';
+  html += '<div class="table-foot"><span class="muted">Показано '+shown.length+' из '+total+'</span>';
+  if(total > pageSize){
+    const pages = Math.ceil(total/pageSize);
+    html += '<div class="pager">';
+    for(let i=0;i<pages;i++){
+      html += '<button class="pg-btn'+(i===page?' active':'')+'" data-act="table-page" data-sec="'+esc(opts.pageKey||'')+'" data-page="'+i+'">'+(i+1)+'</button>';
+    }
+    html += '</div>';
+  }
+  html += '</div></div>';
+  return html;
+}
+
+// ---------------- Filters drawer ----------------
+function filtersHTML(sec, defs){
+  const active = S.filters[sec] || {};
+  const activeCount = Object.keys(active).filter(k=>active[k]!==undefined && active[k]!=='' && !(Array.isArray(active[k])&&active[k].length===0)).length;
+  let html = '<button class="btn btn-ghost filter-toggle" data-act="toggle-filters" data-sec="'+esc(sec)+'">'
+    + '⚗ Фильтр' + (activeCount? ' <span class="badge">'+activeCount+'</span>' : '') + '</button>';
+  html += '<div class="filters-drawer'+(S._filtersOpen===sec?' open':'')+'" data-filters-sec="'+esc(sec)+'">';
+  html += '<div class="filters-head"><b>Фильтры</b><button class="icon-btn" data-act="close-filters">✕</button></div>';
+  html += '<div class="filters-body">';
+  defs.forEach(f => {
+    const val = active[f.key];
+    html += '<label class="f-field"><span>'+esc(f.label)+'</span>';
+    if(f.type==='text'){
+      html += '<input type="text" data-filter-key="'+esc(f.key)+'" data-sec="'+esc(sec)+'" value="'+esc(val||'')+'" placeholder="'+esc(f.ph||'')+'">';
+    } else if(f.type==='num'){
+      html += '<input type="text" inputmode="decimal" class="no-spin" data-filter-key="'+esc(f.key)+'" data-sec="'+esc(sec)+'" value="'+esc(val||'')+'" placeholder="'+esc(f.ph||'')+'">';
+    } else if(f.type==='date'){
+      html += '<input type="date" data-filter-key="'+esc(f.key)+'" data-sec="'+esc(sec)+'" value="'+esc(val||'')+'">';
+    } else if(f.type==='sel'){
+      html += '<select data-filter-key="'+esc(f.key)+'" data-sec="'+esc(sec)+'"><option value="">Все</option>';
+      (f.options||[]).forEach(o => html += '<option value="'+esc(o)+'"'+(val===o?' selected':'')+'>'+esc(o)+'</option>');
+      html += '</select>';
+    } else if(f.type==='ms'){
+      html += '<div class="ms-box" data-filter-key="'+esc(f.key)+'" data-sec="'+esc(sec)+'">';
+      (f.options||[]).forEach(o => {
+        const checked = Array.isArray(val) && val.includes(o);
+        html += '<label class="ms-opt"><input type="checkbox" data-ms-val="'+esc(o)+'" '+(checked?'checked':'')+'> '+esc(o)+'</label>';
+      });
+      html += '</div>';
+    }
+    html += '</label>';
+  });
+  html += '</div><div class="filters-foot">'
+    + '<button class="btn btn-ghost" data-act="clear-filters" data-sec="'+esc(sec)+'">Сбросить</button>'
+    + '<button class="btn btn-primary" data-act="close-filters">Применить</button></div>';
+  html += '</div><div class="filters-backdrop'+(S._filtersOpen===sec?' show':'')+'" data-act="close-filters"></div>';
+  return html;
+}
+
+function applyFilters(sec, rows, defs){
+  const active = S.filters[sec] || {};
+  return rows.filter(row => {
+    return defs.every(f => {
+      const val = active[f.key];
+      if(val===undefined || val==='' || (Array.isArray(val)&&val.length===0)) return true;
+      const rv = f.get ? f.get(row) : row[f.key];
+      if(f.type==='text') return String(rv||'').toLowerCase().includes(String(val).toLowerCase());
+      if(f.type==='num') return Number(rv)===Number(val);
+      if(f.type==='date') return U.iso(new Date(rv))===val;
+      if(f.type==='sel') return rv===val;
+      if(f.type==='ms') return val.includes(rv);
+      return true;
+    });
+  });
+}
+
+// ---------------- Modal shell ----------------
+function openModal(cfg){ S.modal = cfg; global.GC.render(); }
+function closeModal(){ S.modal = null; global.GC.render(); }
+
+function mField(label, key, type, opts, ph){
+  opts = opts || {};
+  const form = S.modal ? S.modal.form : {};
+  const val = form[key];
+  let input = '';
+  if(type==='select'){
+    input = '<select data-mf="'+esc(key)+'">' + (opts.options||[]).map(o=>{
+      const ov = typeof o === 'object' ? o.value : o;
+      const ol = typeof o === 'object' ? o.label : o;
+      return '<option value="'+esc(ov)+'"'+(val===ov?' selected':'')+'>'+esc(ol)+'</option>';
+    }).join('') + '</select>';
+  } else if(type==='textarea'){
+    input = '<textarea data-mf="'+esc(key)+'" placeholder="'+esc(ph||'')+'">'+esc(val||'')+'</textarea>';
+  } else if(type==='num'){
+    input = '<input type="text" inputmode="decimal" class="no-spin" data-mf="'+esc(key)+'" value="'+esc(val===undefined?'':val)+'" placeholder="'+esc(ph||'')+'">';
+  } else if(type==='date'){
+    input = '<input type="date" data-mf="'+esc(key)+'" value="'+esc(val||'')+'">';
+  } else if(type==='checkbox'){
+    input = '<input type="checkbox" data-mf="'+esc(key)+'" '+(val?'checked':'')+'>';
+    return '<label class="m-field m-check">'+input+' <span>'+esc(label)+'</span></label>';
+  } else {
+    input = '<input type="text" data-mf="'+esc(key)+'" value="'+esc(val||'')+'" placeholder="'+esc(ph||'')+'">';
+  }
+  return '<label class="m-field"><span>'+esc(label)+'</span>'+input+'</label>';
+}
+
+function modalHTML(){
+  if(!S.modal) return '';
+  const m = S.modal;
+  return '<div class="modal-backdrop" data-act="close-modal">'
+    + '<div class="modal-card" data-stop="1">'
+    + '<div class="modal-head"><h3>'+esc(m.title)+'</h3><button class="icon-btn" data-act="close-modal">✕</button></div>'
+    + '<div class="modal-body">'+(m.body||'')+'</div>'
+    + '<div class="modal-foot">'
+    + (m.footer!==undefined ? m.footer : (
+        '<button class="btn btn-ghost" data-act="close-modal">Отмена</button>'
+        + (m.onSave ? '<button class="btn btn-primary" data-act="modal-save">'+esc(m.saveLabel||'Сохранить')+'</button>' : '')
+      ))
+    + '</div></div></div>';
+}
+
+// ---------------- Presentation helpers (inline SVG) ----------------
+function statusPill(text, kind){
+  kind = kind || (['Работает','Активна','В работе','Выплачена','Оплачен','Одобрено','Закрыта','Подписан','Свободен'].includes(text) ? 'ok'
+    : (['Заблокирован','Уволен','Отклонена','Не оплачен','Отказано','Просрочена','Истёк','На сервисе','Списан'].includes(text) ? 'bad' : 'warn'));
+  return '<span class="pill pill-'+kind+'">'+esc(text)+'</span>';
+}
+function tagChips(ids, tagsDB){
+  return (ids||[]).map(id => {
+    const t = (tagsDB||[]).find(x=>x.id===id);
+    if(!t) return '';
+    return '<span class="chip" style="--chip-c:'+t.color+'">'+esc(t.name)+'</span>';
+  }).join('');
+}
+function barBlock(pct, kind){
+  pct = Math.max(0, Math.min(100, pct));
+  return '<div class="barblock"><div class="barblock-fill barblock-'+(kind||'ok')+'" style="width:'+pct+'%"></div></div>';
+}
+function spark(values, w, h){
+  w = w||120; h = h||32;
+  if(!values.length) return '<svg viewBox="0 0 '+w+' '+h+'" class="spark"></svg>';
+  const max = Math.max(...values, 0.0001), min = Math.min(...values, 0);
+  const range = (max-min)||1;
+  const step = w/Math.max(values.length-1,1);
+  const pts = values.map((v,i)=> (i*step) + ',' + (h - ((v-min)/range)*h)).join(' ');
+  return '<svg viewBox="0 0 '+w+' '+h+'" class="spark" preserveAspectRatio="none"><polyline points="'+pts+'" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
+}
+function ring(pct, size, label){
+  size = size || 96;
+  const r = size/2 - 8, c = 2*Math.PI*r;
+  const off = c*(1-Math.max(0,Math.min(1,pct)));
+  return '<svg viewBox="0 0 '+size+' '+size+'" class="ring" style="width:'+size+'px;height:'+size+'px">'
+    + '<circle cx="'+size/2+'" cy="'+size/2+'" r="'+r+'" class="ring-bg"/>'
+    + '<circle cx="'+size/2+'" cy="'+size/2+'" r="'+r+'" class="ring-fg" stroke-dasharray="'+c+'" stroke-dashoffset="'+off+'" transform="rotate(-90 '+size/2+' '+size/2+')"/>'
+    + '<text x="50%" y="52%" text-anchor="middle" class="ring-txt">'+esc(label||pctS(pct))+'</text>'
+    + '</svg>';
+}
+// `fact`/`plan`/`floor` are the ARC fractions (0..1, already flipped by the
+// caller for inverted metrics so "more filled" always reads as "better").
+// `displayValue` is the true fact shown as text — for an inverted metric
+// this is NOT the same number as `fact`, so it's passed separately rather
+// than re-derived from the (possibly flipped) arc fraction.
+function gauge(fact, plan, floor, size, displayValue){
+  size = size||140;
+  const cx=size/2, cy=size*0.62, r=size*0.4;
+  const a0=Math.PI, a1=0; // semicircle
+  const toXY = (frac) => {
+    const a = a0 + (a1-a0)*frac;
+    return [cx+r*Math.cos(a), cy+r*Math.sin(a)];
+  };
+  const [fx,fy] = toXY(Math.max(0,Math.min(1,fact)));
+  const [px,py] = toXY(Math.max(0,Math.min(1,plan)));
+  const [flx,fly] = toXY(Math.max(0,Math.min(1,floor)));
+  const large = fact>0.5?1:0;
+  const label = displayValue!==undefined ? pctS(displayValue) : pctS(fact);
+  return '<svg viewBox="0 0 '+size+' '+(size*0.7)+'" class="gauge" style="width:'+size+'px;height:'+(size*0.7)+'px">'
+    + '<path d="M '+(cx-r)+' '+cy+' A '+r+' '+r+' 0 1 1 '+(cx+r)+' '+cy+'" class="gauge-bg" fill="none"/>'
+    + '<path d="M '+(cx-r)+' '+cy+' A '+r+' '+r+' 0 '+large+' 1 '+fx+' '+fy+'" class="gauge-fg" fill="none"/>'
+    + '<line x1="'+cx+'" y1="'+cy+'" x2="'+px+'" y2="'+py+'" class="gauge-tick"/>'
+    + '<line x1="'+cx+'" y1="'+cy+'" x2="'+flx+'" y2="'+fly+'" class="gauge-floor"/>'
+    + '<text x="'+cx+'" y="'+cy+'" text-anchor="middle" class="gauge-txt">'+label+'</text>'
+    + '</svg>';
+}
+function donut(segments, size){ // [{value,color,label}]
+  size = size||100;
+  const total = segments.reduce((s,x)=>s+x.value,0) || 1;
+  const r = size/2-6, c = 2*Math.PI*r;
+  let acc = 0;
+  const cx=size/2, cy=size/2;
+  const arcs = segments.map(seg => {
+    const frac = seg.value/total;
+    const dash = frac*c;
+    const el = '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+seg.color+'" stroke-width="12" '
+      + 'stroke-dasharray="'+dash+' '+(c-dash)+'" stroke-dashoffset="'+(-acc)+'" transform="rotate(-90 '+cx+' '+cy+')"/>';
+    acc += dash;
+    return el;
+  }).join('');
+  return '<svg viewBox="0 0 '+size+' '+size+'" class="donut" style="width:'+size+'px;height:'+size+'px">'+arcs+'</svg>';
+}
+function lineChartMulti(series, w, h){ // [{name,color,values}]
+  w=w||600; h=h||220;
+  const all = series.flatMap(s=>s.values);
+  const max = Math.max(...all,1), min = Math.min(...all,0);
+  const range = (max-min)||1;
+  const n = Math.max(...series.map(s=>s.values.length),1);
+  const step = w/Math.max(n-1,1);
+  const pad = 24;
+  const lines = series.map(s => {
+    const pts = s.values.map((v,i)=> (i*step) + ',' + (pad+(h-2*pad) - ((v-min)/range)*(h-2*pad))).join(' ');
+    return '<polyline points="'+pts+'" fill="none" stroke="'+s.color+'" stroke-width="2.5"/>';
+  }).join('');
+  return '<svg viewBox="0 0 '+w+' '+h+'" class="linechart" preserveAspectRatio="none">'+lines+'</svg>';
+}
+function stackChart(rows, w, h){ // rows: [{label, segs:[{value,color}]}]
+  w=w||600; h=h||220;
+  const max = Math.max(...rows.map(r=>r.segs.reduce((s,x)=>s+x.value,0)),1);
+  const bw = w/rows.length*0.6, gap = w/rows.length;
+  let html = '<svg viewBox="0 0 '+w+' '+h+'" class="stackchart">';
+  rows.forEach((r,i) => {
+    let y = h;
+    const total = r.segs.reduce((s,x)=>s+x.value,0);
+    const barH = (total/max)*(h-20);
+    let yTop = h-barH;
+    r.segs.forEach(seg => {
+      const segH = (seg.value/max)*(h-20);
+      y -= segH;
+      html += '<rect x="'+(i*gap+ (gap-bw)/2)+'" y="'+y+'" width="'+bw+'" height="'+segH+'" fill="'+seg.color+'"/>';
+    });
+  });
+  html += '</svg>';
+  return html;
+}
+
+global.GC.S = S;
+global.GC.currentUser = currentUser;
+global.GC.hasRight = hasRight;
+global.GC.canSeeSection = canSeeSection;
+global.GC.toast = toast;
+global.GC.tableHTML = tableHTML;
+global.GC.filtersHTML = filtersHTML;
+global.GC.applyFilters = applyFilters;
+global.GC.openModal = openModal;
+global.GC.closeModal = closeModal;
+global.GC.mField = mField;
+global.GC.modalHTML = modalHTML;
+global.GC.statusPill = statusPill;
+global.GC.tagChips = tagChips;
+global.GC.barBlock = barBlock;
+global.GC.spark = spark;
+global.GC.ring = ring;
+global.GC.gauge = gauge;
+global.GC.donut = donut;
+global.GC.lineChartMulti = lineChartMulti;
+global.GC.stackChart = stackChart;
+
+})(typeof window !== 'undefined' ? window : globalThis);
+
+
+/* ---- 12-shell.js ---- */
+/* ===== 12. SHELL — topbar, drawer menu, navtabs, render pipeline,
+   reveal animation ===== */
+(function(global){
+'use strict';
+const G = global.GC, U = G.Utils;
+const { esc } = U;
+const S = G.S;
+
+const MENU = [
+  { group:'Обзор', items:[
+    { key:'dash', label:'Главное', icon:'▤' },
+    { key:'dispatch', label:'Диспетчерская', icon:'◎' },
+    { key:'tasks', label:'Мои задачи', icon:'☑' },
+    { key:'notif', label:'Уведомления', icon:'🔔' }
+  ]},
+  { group:'Парк', items:[
+    { key:'cars', label:'Автопарк', icon:'🚗' },
+    { key:'repairs', label:'Автосервис', icon:'🔧' },
+    { key:'repairs', label:'Склад', icon:'📦', tab:3 },
+    { key:'handover', label:'Приём-выдача', icon:'🔑' },
+    { key:'inspections', label:'Осмотры', icon:'🔍' },
+    { key:'incidents', label:'ДТП и страховые', icon:'⚠' }
+  ]},
+  { group:'Люди', items:[
+    { key:'drivers', label:'Водители', icon:'👤' },
+    { key:'shifts', label:'Смены', icon:'⏱' },
+    { key:'contracts', label:'Договоры', icon:'📄' },
+    { key:'tickets', label:'Обращения', icon:'✉' },
+    { key:'import', label:'Импорт водителей', icon:'⇩' },
+    { key:'comments', label:'Комментарии', icon:'💬' }
+  ]},
+  { group:'Деньги', items:[
+    { key:'mgmt', label:'Банк и касса', icon:'💰' },
+    { key:'fines', label:'Штрафы', icon:'🚫' },
+    { key:'deposits', label:'Депозиты и выплаты', icon:'🏦' },
+    { key:'leasing', label:'Лизинг', icon:'📊' },
+    { key:'pnl', label:'Доходы и расходы', icon:'📈' }
+  ]},
+  { group:'Аналитика', items:[
+    { key:'stats', label:'Отчеты', icon:'📉' }
+  ]},
+  { group:'Настройки', items:[
+    { key:'refs', label:'Справочники', icon:'📚' },
+    { key:'users', label:'Настройки', icon:'⚙' }
+  ]}
+];
+
+const SECTION_TABS = {
+  dash:['Главное'],
+  dispatch:['Карта'],
+  tasks:['Мои задачи'],
+  notif:['Все','Документы','Финансы'],
+  drivers:['Список водителей','Дубли'],
+  cars:['Список автомобилей','Документы','Парк построчно'],
+  repairs:['Наряд-заказы','Календарь записи','Посты и загрузка','Склад запчастей','Эффективность'],
+  handover:['Акты приёма-выдачи','Новый акт'],
+  shifts:['Журнал смен','Выпуск на линию'],
+  inspections:['Журнал осмотров','Тарифы повреждений'],
+  incidents:['Реестр случаев'],
+  mgmt:['Касса','Рассрочка','Заказы','История','Компенсации','Финансовый обзор'],
+  fines:['Реестр штрафов','Выгрузки в банк'],
+  deposits:['Депозиты','Моментальные выплаты'],
+  contracts:['Электронные документы'],
+  leasing:['Договоры лизинга','График платежей'],
+  pnl:['Операции','План и факт'],
+  tickets:['Обращения','Рассылки'],
+  import:['Загрузка файла','История загрузок'],
+  stats:['Сводка','Подразделения','Задолженность по дням','Собираемость','KPI менеджеров','Светофор'],
+  refs:['Организации','Подразделения','Диспетчерские','Терминалы','Банки','Компенсации причины','Страховые компании','Теги'],
+  users:['Пользователи'],
+  comments:['Все комментарии']
+};
+const SECTION_LABEL = {};
+MENU.forEach(g => g.items.forEach(it => { if(!SECTION_LABEL[it.key]) SECTION_LABEL[it.key] = it.label; }));
+
+G.VIEWS = G.VIEWS || {}; // sec -> function(tab) -> html, populated by section modules
+G.ACTIONS = G.ACTIONS || {}; // data-act name -> function(el, ev), populated by every module that needs one
+
+function notificationCount(){
+  const DB = S.DB;
+  let n = 0;
+  const in30 = (d) => { const days = U.daysBetween(U.NOW, new Date(d)); return days>=0 && days<=30; };
+  DB.drivers.forEach(d => { if(d.licUntil && in30(d.licUntil)) n++; });
+  DB.cars.forEach(c => { if(in30(c.insUntil)) n++; if(in30(c.techUntil)) n++; });
+  DB.leases.forEach(l => { if(in30(l.next)) n++; });
+  DB.fines.forEach(f => { if(f.status==='Не оплачен' && f.sum>1000) n++; });
+  return n;
+}
+
+function topbarHTML(){
+  const u = G.currentUser();
+  const initials = u.name.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
+  const roles = G.ENUM.ROLES;
+  const langs = [['ru','RU'],['en','EN'],['fr','FR']];
+  return '<div class="topbar">'
+    + '<button class="icon-btn menu-btn" data-act="toggle-drawer">☰</button>'
+    + '<div class="avatar">'+esc(initials)+'</div>'
+    + '<div class="brand">GoCab</div>'
+    + '<span class="role-pill" id="roleBox">'+esc(S.role)+'</span>'
+    + '<div class="lang-switch">' + langs.map(([code,label])=>
+        '<button class="lang-btn'+(S.lang===code?' active':'')+'" data-act="set-lang" data-lang="'+code+'">'+label+'</button>').join('') + '</div>'
+    + '<div class="spacer"></div>'
+    + '<div class="acct-wrap">'
+    + '<button class="btn btn-ghost acct-toggle" data-act="toggle-acct">'+esc(u.name)+' ▾</button>'
+    + '<div class="acct-menu" id="acctMenu">'
+    + '<div class="acct-menu-label">Личный кабинет</div>'
+    + roles.map(r => '<button class="acct-item'+(S.role===r?' active':'')+'" data-act="set-role" data-role="'+esc(r)+'">'+esc(r)+'</button>').join('')
+    + '</div></div>'
+    + '</div>';
+}
+
+function drawerHTML(){
+  let html = '<div class="drawer-backdrop'+(S.side?' show':'')+'" data-act="close-drawer"></div>';
+  html += '<nav class="drawer'+(S.side?' open':'')+'" id="nav">';
+  html += '<div class="drawer-head"><b>GoCab Control</b><button class="icon-btn" data-act="close-drawer">✕</button></div>';
+  MENU.forEach(g => {
+    const items = g.items.filter(it => G.canSeeSection(it.key));
+    if(!items.length) return;
+    const open = S.menuOpen[g.group] !== false;
+    html += '<div class="drawer-group">';
+    html += '<button class="drawer-group-head" data-act="toggle-group" data-group="'+esc(g.group)+'">'
+      + '<span>'+esc(g.group)+'</span><span class="chev">'+(open?'▾':'▸')+'</span></button>';
+    html += '<div class="drawer-group-body" style="display:'+(open?'block':'none')+'">';
+    items.forEach(it => {
+      const activeItem = S.sec===it.key && (it.tab===undefined || S.tab===it.tab);
+      html += '<button class="drawer-item'+(activeItem?' active':'')+'" data-act="goto" data-sec="'+esc(it.key)+'" data-tab="'+(it.tab||0)+'">'
+        + '<span class="di-icon">'+it.icon+'</span><span>'+esc(it.label)+'</span>'
+        + (it.key==='notif' ? notifBadge() : '')
+        + '</button>';
+    });
+    html += '</div></div>';
+  });
+  html += '</nav>';
+  return html;
+}
+function notifBadge(){
+  const n = notificationCount();
+  return n>0 ? '<span class="di-badge">'+n+'</span>' : '';
+}
+
+function navtabsHTML(){
+  const tabs = SECTION_TABS[S.sec] || ['Главное'];
+  return '<div class="navtabs" id="navtabs">' + tabs.map((t,i) =>
+    '<button class="navtab'+(S.tab===i?' active':'')+'" data-act="set-tab" data-tab="'+i+'">'+esc(t)+'</button>'
+  ).join('') + '</div>';
+}
+
+function pageHTML(){
+  const fn = G.VIEWS[S.sec];
+  let inner;
+  try{
+    inner = fn ? fn(S.tab) : '<div class="card"><div class="empty-state">Раздел в разработке</div></div>';
+  } catch(e){
+    inner = '<div class="card"><div class="empty-state">Ошибка отображения: '+esc(e.message)+'</div></div>';
+  }
+  return '<div class="page" id="page">'+inner+'</div>';
+}
+
+let lastRevealKey = '';
+function render(){
+  if(!G.canSeeSection(S.sec)){
+    const sections = G.ROLE_SECTIONS[S.role]||['dash'];
+    S.sec = sections[0]; S.tab = 0;
+  }
+  const root = document.getElementById('app');
+  if(!root) return;
+  root.innerHTML = '<div class="shell">'
+    + topbarHTML()
+    + drawerHTML()
+    + '<main class="main">'
+    + navtabsHTML()
+    + pageHTML()
+    + '</main>'
+    + '</div>'
+    + (S.modal ? G.modalHTML() : '')
+    + (S.toastMsg ? '<div class="toast show" id="toast">'+esc(S.toastMsg)+'</div>' : '');
+
+  const key = [S.side,S.sec,S.tab,S.role,S.lang].join('|');
+  const page = document.getElementById('page');
+  if(page && !global.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    if(key !== lastRevealKey){
+      Array.from(page.children).forEach((child,i) => {
+        child.classList.add('reveal');
+        child.style.animationDelay = (i*55)+'ms';
+      });
+    }
+  }
+  lastRevealKey = key;
+
+  if(S.lang !== 'ru' && G.applyI18n) G.applyI18n();
+}
+
+global.GC.MENU = MENU;
+global.GC.SECTION_TABS = SECTION_TABS;
+global.GC.SECTION_LABEL = SECTION_LABEL;
+global.GC.notificationCount = notificationCount;
+global.GC.render = render;
+
+})(typeof window !== 'undefined' ? window : globalThis);
+
+
+/* ---- 13-sections-core.js ---- */
+/* ===== 13. CORE SECTIONS: dash, drivers, cars, fines, mgmt, refs, users ===== */
+(function(global){
+'use strict';
+const G = global.GC, U = G.Utils, C = G.CONST, E = G.ENUM;
+const { esc, money, cur, pctS, num, fmtD, fmtDT, iso, shift, NOW } = U;
+const S = G.S;
+
+function page(pageKey, defaultPage){ S._tablePage = S._tablePage||{}; return S._tablePage[pageKey] || 0; }
+
+function driverById(id){ return S.DB.drivers.find(d=>d.id===id); }
+function carById(id){ return S.DB.cars.find(c=>c.id===id); }
+function carByRef(refId){ return S.DB.cars.find(c=>c.id===refId); }
+function divName(id){ const d=S.DB.divs.find(x=>x.id===id); return d?d.name:''; }
+function orgName(id){ const o=S.DB.orgs.find(x=>x.id===id); return o?o.name:''; }
+
+function doExport(kind, rows, cols){
+  const header = cols.map(c=>c.label).join(';');
+  const lines = rows.map(r => cols.map(c => (c.raw?c.raw(r):r[c.key])).join(';'));
+  const csv = '﻿' + [header].concat(lines).join('\n');
+  const blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = kind + '-' + U.iso(U.NOW) + '.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
+  G.toast('Файл выгружен: '+a.download);
+}
+
+/* ============== DASHBOARD ============== */
+function viewDash(){
+  const DB = S.DB;
+  const totals = G.ledgerTotals(DB);
+  const workingCars = DB.cars.filter(c=>c.status==='В работе').length;
+  const kpiAvg = DB._kpi.length ? DB._kpi.reduce((s,m)=>s+m.avgAchievement,0)/DB._kpi.length : 0;
+  const debtDrivers = DB.drivers.filter(d=>d.car && d.bal<0).length;
+  const openRepairs = DB.orders2.filter(o=>o.phase<6).length;
+  const notifN = G.notificationCount();
+
+  let html = '<div class="grid grid-4">';
+  html += statTile('Автопарк', DB.cars.length+' машин', workingCars+' в работе', workingCars>=DB.cars.length*0.8?'up':'down');
+  html += statTile('Водители', DB.drivers.filter(d=>d.active).length+' активных', DB.drivers.length+' всего', 'up');
+  html += statTile('Собираемость аренды', pctS(totals.rate), 'план 96%', totals.rate>=0.9?'up':'down');
+  html += statTile('KPI менеджеров', pctS(kpiAvg), 'среднее достижение', kpiAvg>=0.8?'up':'down');
+  html += '</div>';
+
+  html += '<div class="grid grid-3">';
+  html += statTile('Долг по аренде', debtDrivers+' водителей', 'с отрицательным балансом', debtDrivers>2?'down':'up');
+  html += statTile('Ремонты в работе', openRepairs+' наряд-заказов', (DB.orders2.length-openRepairs)+' завершено', 'up');
+  html += statTile('Уведомления', notifN, 'требуют внимания', notifN>5?'down':'up');
+  html += '</div>';
+
+  html += '<div class="card"><div class="card-head"><h3>Собираемость аренды по месяцам</h3></div>';
+  const spark9 = DB._collection.months.map((m,i)=>{
+    let acc=0, col=0;
+    Object.values(DB._collection.perDriver).forEach(p=>{ acc+=p.monthly[i].accrued; col+=p.monthly[i].collected; });
+    return acc? col/acc : 0;
+  });
+  html += G.lineChartMulti([{name:'Собираемость', color:'#ffc629', values: spark9.map(x=>x*100)}], 700, 200);
+  html += '<div class="muted">'+DB._collection.months.join(' · ')+'</div></div>';
+
+  html += '<div class="card"><div class="card-head"><h3>Автопарк по филиалам</h3></div><div class="grid grid-3">';
+  DB.divs.forEach(dv => {
+    const cars = DB.cars.filter(c=>c.div===dv.id);
+    const work = cars.filter(c=>c.status==='В работе').length;
+    html += '<div class="stat-tile"><div class="l">'+esc(dv.name)+'</div><div class="v">'+work+'/'+cars.length+'</div>'
+      + G.barBlock(cars.length? work/cars.length*100:0) + '</div>';
+  });
+  html += '</div></div>';
+  return html;
+}
+function statTile(label, value, sub, dir){
+  return '<div class="stat-tile"><div class="l">'+esc(label)+'</div><div class="v">'+esc(value)+'</div>'
+    + '<div class="d '+(dir==='up'?'d-up':'d-down')+'">'+(dir==='up'?'▲':'▼')+' '+esc(sub)+'</div></div>';
+}
+
+/* ============== DRIVERS ============== */
+const DRIVER_FILTERS = [
+  { key:'status', label:'Статус', type:'sel', options:E.STATUS },
+  { key:'div', label:'Филиал', type:'sel', get:(d)=>divName(d.div), options: null },
+  { key:'fio', label:'ФИО', type:'text' },
+];
+function viewDrivers(tab){
+  if(tab===1) return viewDriverDupes();
+  const DB = S.DB;
+  const defs = DRIVER_FILTERS.map(f => f.key==='div' ? Object.assign({},f,{options:DB.divs.map(d=>d.name)}) : f);
+  const filtered = G.applyFilters('drivers', DB.drivers, defs);
+  const cols = [
+    { label:'ФИО', render:d=>'<b>'+esc(d.fio)+'</b>'+' '+G.tagChips(d.tags, DB.tags) },
+    { label:'Телефон', key:'phone' },
+    { label:'Статус', render:d=>G.statusPill(d.status) },
+    { label:'Авто', render:d=> d.car ? esc(carById(d.car).plate) : '—' },
+    { label:'Филиал', render:d=>esc(divName(d.div)) },
+    { label:'Баланс', render:d=>'<span style="color:'+(d.bal<0?'var(--bad)':'var(--ok)')+'">'+cur(d.bal)+'</span>' },
+    { label:'Штрафы', render:d=> d.finesBal ? cur(d.finesBal) : '—' },
+    { label:'Дисциплина', render:d=>pctS(d._disc) },
+    { label:'', render:d=>'<button class="btn btn-sm btn-ghost" data-act="open-driver" data-id="'+d.id+'">Карточка</button>' }
+  ];
+  const actions = '<button class="btn btn-sm btn-primary" data-act="add-driver">+ Водитель</button>';
+  let html = '<div class="card-head"><div></div><div class="card-actions">'+G.filtersHTML('drivers', defs)+actions+'</div></div>';
+  html += G.tableHTML(cols, filtered, { title:'Список водителей ('+filtered.length+')', page: page('drivers'), pageKey:'drivers' });
+  return html;
+}
+function viewDriverDupes(){
+  const DB = S.DB;
+  const cols = [
+    { label:'ФИО (A)', render:r=>esc(r.fioA) }, { label:'ФИО (B)', render:r=>esc(r.fioB) },
+    { label:'Причина', key:'reason' },
+    { label:'', render:r=>'<button class="btn btn-sm btn-ghost" data-act="resolve-dupe" data-id="'+r.id+'">Не дубль</button>'
+      + ' <button class="btn btn-sm btn-primary" data-act="merge-dupe" data-id="'+r.id+'">Объединить</button>' }
+  ];
+  return G.tableHTML(cols, DB.dupes, { title:'Возможные дубли водителей' });
+}
+function driverBalanceCard(d){
+  const DB = S.DB;
+  const ops = DB.cash.filter(c=>c.driverId===d.id).sort((a,b)=>new Date(b.at)-new Date(a.at)).slice(0,15);
+  let html = '<div class="grid grid-4">'
+    + statTile('Баланс', cur(d.bal), '', d.bal>=0?'up':'down')
+    + statTile('Яндекс', cur(d.balY), '', d.balY>=0?'up':'down')
+    + statTile('Штрафы', cur(-d.finesBal), '', 'down')
+    + statTile('Повреждения', cur(-d.dmgBal), '', 'down')
+    + '</div>';
+  html += '<div class="table-scroll"><table class="tbl"><thead><tr><th>Дата</th><th>Интерфейс</th><th>Источник</th><th>Тип</th><th>Сумма</th><th>Было</th><th>Стало</th></tr></thead><tbody>';
+  ops.forEach(c => {
+    html += '<tr><td>'+fmtDT(c.at)+'</td><td>'+esc(c.iface)+'</td><td>'+esc(c.src)+'</td>'
+      + '<td>'+G.statusPill(c.type,c.type==='Пополнение'?'ok':'bad')+'</td><td>'+cur(c.amt)+'</td><td>'+cur(c.before)+'</td><td>'+cur(c.after)+'</td></tr>';
+  });
+  html += '</tbody></table></div>';
+  if(d.notes && d.notes.length){
+    html += '<div class="card" style="margin-top:10px"><b>Заметки</b>'
+      + d.notes.map(n=>'<div class="muted">'+fmtDT(n.at)+' · '+esc(n.by)+': '+esc(n.text)+'</div>').join('') + '</div>';
+  }
+  return html;
+}
+
+/* ============== CARS ============== */
+function viewCars(tab){
+  const DB = S.DB;
+  if(tab===1) return viewCarDocs();
+  if(tab===2) return viewCarsRowByRow();
+  const defs = [
+    { key:'status', label:'Статус', type:'sel', options:E.CAR_STATUS },
+    { key:'model', label:'Модель', type:'sel', options:E.MODELS },
+    { key:'div', label:'Филиал', type:'sel', get:(c)=>divName(c.div), options:DB.divs.map(d=>d.name) }
+  ];
+  const filtered = G.applyFilters('cars', DB.cars, defs);
+  const cols = [
+    { label:'Госномер', render:c=>'<b>'+esc(c.plate)+'</b>' },
+    { label:'Модель', key:'model' }, { label:'Год', key:'year' },
+    { label:'КПП', key:'akpp' }, { label:'ГБО', render:c=>c.gbo?'Да':'—' },
+    { label:'Статус', render:c=>G.statusPill(c.status) },
+    { label:'Пробег', render:c=>num(c.mileage)+' км' },
+    { label:'Филиал', render:c=>esc(divName(c.div)) },
+    { label:'', render:c=>'<button class="btn btn-sm btn-ghost" data-act="open-car" data-id="'+c.id+'">Карточка</button>' }
+  ];
+  let html = '<div class="card-head"><div></div><div class="card-actions">'+G.filtersHTML('cars', defs)
+    + '<button class="btn btn-sm btn-primary" data-act="add-car">+ Автомобиль</button></div></div>';
+  html += G.tableHTML(cols, filtered, { title:'Список автомобилей ('+filtered.length+')', page:page('cars'), pageKey:'cars' });
+  return html;
+}
+function expiryPill(dateStr){
+  const days = U.daysBetween(NOW, new Date(dateStr));
+  const kind = days<0 ? 'bad' : (days<=30?'warn':'ok');
+  return '<span class="pill pill-'+kind+'">'+fmtD(dateStr)+' ('+(days<0?'просрочено':days+' дн.')+')</span>';
+}
+function viewCarDocs(){
+  const DB = S.DB;
+  const cols = [
+    { label:'Госномер', key:'plate' }, { label:'Модель', key:'model' },
+    { label:'Страховка до', render:c=>expiryPill(c.insUntil) },
+    { label:'Техосмотр до', render:c=>expiryPill(c.techUntil) },
+    { label:'Лизинг до', render:c=>expiryPill(c.leaseUntil) },
+    { label:'Страховая', render:c=>esc((DB.insurers.find(i=>i.id===c.insurer)||{}).name||'') }
+  ];
+  return G.tableHTML(cols, DB.cars, { title:'Документы автопарка' });
+}
+function viewCarsRowByRow(){
+  const DB = S.DB;
+  return DB.cars.map(c => {
+    const d = DB.drivers.find(x=>x.car===c.id);
+    return '<div class="card"><div class="card-head"><h3>'+esc(c.plate)+' · '+esc(c.model)+'</h3>'+G.statusPill(c.status)+'</div>'
+      + '<div class="grid grid-4">'
+      + statTile('Год', c.year,'') + statTile('Пробег', num(c.mileage)+' км','')
+      + statTile('Филиал', divName(c.div),'') + statTile('Водитель', d?d.fio:'Не закреплён','')
+      + '</div></div>';
+  }).join('');
+}
+
+/* ============== FINES ============== */
+function viewFines(tab){
+  const DB = S.DB;
+  if(tab===1) return viewFinesExport();
+  const defs = [
+    { key:'status', label:'Статус', type:'sel', options:E.FINE_STATUS },
+    { key:'driver', label:'Водитель', type:'text' },
+    { key:'car', label:'Автомобиль', type:'text' }
+  ];
+  const filtered = G.applyFilters('fines', DB.fines, defs);
+  const cols = [
+    { label:'№', key:'doc' }, { label:'Нарушение', key:'viol' },
+    { label:'Дата', render:f=>fmtD(f.violAt) }, { label:'Сумма', render:f=>cur(f.sum) },
+    { label:'Авто', key:'car' }, { label:'Водитель', key:'driver' },
+    { label:'Статус', render:f=>G.statusPill(f.status) },
+    { label:'', render:f=> f.status==='Не оплачен' ? '<button class="btn btn-sm btn-primary" data-act="pay-fine" data-id="'+f.id+'">Оплатить</button>' : '' }
+  ];
+  let html = '<div class="card-head"><div></div><div class="card-actions">'+G.filtersHTML('fines', defs)+'</div></div>';
+  html += G.tableHTML(cols, filtered, { title:'Реестр штрафов ('+filtered.length+')', page:page('fines'), pageKey:'fines' });
+  return html;
+}
+function viewFinesExport(){
+  const DB = S.DB;
+  let html = '<div class="card"><div class="card-head"><h3>Выгрузки в банк</h3>'
+    + '<button class="btn btn-primary" data-act="export-fines">Сформировать выгрузку CSV</button></div>'
+    + '<div class="muted">Формирует клиент-банк файл по неоплаченным штрафам (see doExport в разделе 14 спецификации).</div></div>';
+  const cols = [{label:'Банк',key:'bank'},{label:'№',key:'doc'},{label:'Сумма',render:f=>cur(f.sum)},{label:'Статус',render:f=>G.statusPill(f.status)}];
+  html += G.tableHTML(cols, DB.fines.filter(f=>f.status==='Не оплачен'), { title:'К выгрузке' });
+  return html;
+}
+
+/* ============== MGMT (Касса и пр.) ============== */
+function viewMgmt(tab){
+  const DB = S.DB;
+  if(tab===1) return viewInstalments();
+  if(tab===2) return viewMgmtOrders();
+  if(tab===3) return viewHistory();
+  if(tab===4) return viewComps();
+  if(tab===5) return viewFinOverview();
+  return viewCash();
+}
+function viewCash(){
+  const DB = S.DB;
+  const defs = [
+    { key:'src', label:'Источник', type:'sel', options:E.SOURCES },
+    { key:'type', label:'Тип', type:'sel', options:E.OPTYPES },
+    { key:'iface', label:'Интерфейс', type:'sel', options:E.IFACES },
+    { key:'driver', label:'Водитель', type:'text' }
+  ];
+  const sorted = DB.cash.slice().sort((a,b)=>new Date(b.at)-new Date(a.at));
+  const filtered = G.applyFilters('cash', sorted, defs);
+  const totals = G.ledgerTotals(DB);
+  let html = '<div class="grid grid-3">'
+    + statTile('Начислено (30 дн.)', cur(totals.accrued),'')
+    + statTile('Собрано (30 дн.)', cur(totals.collected),'')
+    + statTile('Собираемость', pctS(totals.rate),'')
+    + '</div>';
+  html += '<div class="card-head"><div></div><div class="card-actions">'+G.filtersHTML('cash', defs)
+    + '<button class="btn btn-sm btn-primary" data-act="add-cash-op">+ Операция</button></div></div>';
+  const cols = [
+    { label:'Дата', render:c=>fmtDT(c.at) }, { label:'Водитель', key:'driver' },
+    { label:'Интерфейс', key:'iface' }, { label:'Источник', key:'src' },
+    { label:'Тип', render:c=>G.statusPill(c.type, c.type==='Пополнение'?'ok':'bad') },
+    { label:'Сумма', render:c=>cur(c.amt) }, { label:'Было', render:c=>cur(c.before) }, { label:'Стало', render:c=>cur(c.after) }
+  ];
+  html += G.tableHTML(cols, filtered, { title:'Касса ('+filtered.length+')', page:page('cash'), pageKey:'cash' });
+  return html;
+}
+function viewInstalments(){
+  const DB = S.DB;
+  const cols = [
+    { label:'Водитель', key:'driver' }, { label:'Авто', key:'car' }, { label:'Вид', key:'kind' },
+    { label:'Всего', render:r=>cur(r.total) }, { label:'Остаток', render:r=>cur(r.left) },
+    { label:'В день', render:r=>cur(r.perDay) }, { label:'Статус', render:r=>G.statusPill(r.status) }
+  ];
+  return G.tableHTML(cols, DB.instal, { title:'Рассрочки' });
+}
+function viewMgmtOrders(){
+  const DB = S.DB;
+  const cols = [
+    { label:'№', key:'no' }, { label:'Тип', key:'type' }, { label:'Водитель', key:'driver' },
+    { label:'Авто', key:'car' }, { label:'Статус', render:r=>G.statusPill(r.status) }, { label:'Дата', render:r=>fmtD(r.createdAt) }
+  ];
+  return G.tableHTML(cols, DB.orders, { title:'Заказы (путевые листы / заявки на авто)' });
+}
+function viewHistory(){
+  const DB = S.DB;
+  const cols = [
+    { label:'Дата', render:r=>fmtD(r.at) }, { label:'Кто', key:'who' }, { label:'Раздел', key:'section' },
+    { label:'Объект', key:'obj' }, { label:'Поле', key:'field' },
+    { label:'Было', key:'from' }, { label:'Стало', key:'to' }
+  ];
+  return G.tableHTML(cols, DB.history.slice().sort((a,b)=>new Date(b.at)-new Date(a.at)), { title:'История изменений' });
+}
+function viewComps(){
+  const DB = S.DB;
+  const canApprove = G.hasRight('Компенсации: одобрение');
+  const cols = [
+    { label:'Дата', render:r=>fmtD(r.at) }, { label:'Водитель', key:'driver' }, { label:'Причина', key:'reason' },
+    { label:'Сумма', render:r=>cur(r.sum) }, { label:'Статус', render:r=>G.statusPill(r.status) },
+    { label:'Комментарий', key:'note' },
+    { label:'', render:r=> (r.status==='На одобрении' && canApprove)
+      ? '<button class="btn btn-sm btn-primary" data-act="approve-comp" data-id="'+r.id+'">Одобрить</button> <button class="btn btn-sm btn-ghost" data-act="reject-comp" data-id="'+r.id+'">Отказать</button>'
+      : (r.decidedBy ? '<span class="muted">'+esc(r.decidedBy)+'</span>' : '') }
+  ];
+  let html = '<div class="card-head"><div></div><div class="card-actions"><button class="btn btn-sm btn-primary" data-act="add-comp">+ Запрос</button></div></div>';
+  html += G.tableHTML(cols, DB.comps, { title:'Компенсации' });
+  return html;
+}
+function viewFinOverview(){
+  const DB = S.DB;
+  const totals = G.ledgerTotals(DB);
+  const income = DB.pnl.filter(p=>p.type==='Доход').reduce((s,p)=>s+p.amount,0);
+  const expense = DB.pnl.filter(p=>p.type==='Расход').reduce((s,p)=>s+p.amount,0);
+  let html = '<div class="grid grid-4">'
+    + statTile('Начислено', cur(totals.accrued),'')
+    + statTile('Собрано', cur(totals.collected),'')
+    + statTile('Доходы (P&L)', cur(income),'')
+    + statTile('Расходы (P&L)', cur(expense),'')
+    + '</div>';
+  html += '<div class="card"><div class="card-head"><h3>Собираемость по менеджерам</h3></div><div class="grid grid-2">';
+  DB._kpi.forEach(m => {
+    html += '<div class="stat-tile"><div class="l">'+esc(m.name)+'</div><div class="v">'+pctS(m.facts.collection)+'</div>'+G.barBlock(m.facts.collection*100)+'</div>';
+  });
+  html += '</div></div>';
+  return html;
+}
+
+/* ============== REFS (Справочники) ============== */
+function viewRefs(tab){
+  const DB = S.DB;
+  const specs = [
+    { key:'orgs', title:'Организации', cols:[{label:'Название',key:'name'}] },
+    { key:'divs', title:'Подразделения', cols:[{label:'Название',key:'name'},{label:'Город',key:'city'},{label:'Менеджер',key:'manager'}] },
+    { key:'disp', title:'Диспетчерские', cols:[{label:'Название',key:'name'}] },
+    { key:'terminals', title:'Терминалы', cols:[{label:'Название',key:'name'},{label:'Статус',render:r=>G.statusPill(r.status)}] },
+    { key:'banks', title:'Банки', cols:[{label:'Название',key:'name'},{label:'BIC',key:'bic'}] },
+    { key:'reasons', title:'Компенсации причины', cols:[{label:'Причина',key:'name'},{label:'Лимит',render:r=>cur(r.limit)}] },
+    { key:'insurers', title:'Страховые компании', cols:[{label:'Название',key:'name'}] },
+    { key:'tags', title:'Теги', cols:[{label:'Название',render:r=>'<span class="chip" style="--chip-c:'+r.color+'">'+esc(r.name)+'</span>'}] }
+  ];
+  const spec = specs[tab] || specs[0];
+  let html = '<div class="card-head"><div></div><div class="card-actions"><button class="btn btn-sm btn-primary" data-act="add-ref" data-ref="'+spec.key+'">+ Добавить</button></div></div>';
+  html += G.tableHTML(spec.cols, DB[spec.key], { title: spec.title });
+  return html;
+}
+
+/* ============== USERS ============== */
+function viewUsers(){
+  const DB = S.DB;
+  const canManage = G.hasRight('Пользователи');
+  const cols = [
+    { label:'Имя', key:'name' }, { label:'Должность', key:'role' }, { label:'Роль доступа', key:'appRole' },
+    { label:'Филиал', render:u=> u.div ? esc(divName(u.div)) : 'Все' },
+    { label:'Права', render:u=> u.rights.map(r=>'<span class="pill pill-ok" style="margin:1px">'+esc(r)+'</span>').join(' ') },
+    { label:'', render:u=> canManage ? '<button class="btn btn-sm btn-ghost" data-act="edit-rights" data-id="'+u.id+'">Изменить права</button>' : '' }
+  ];
+  let html = '<div class="card-head"><div></div><div class="card-actions">'+(canManage?'<button class="btn btn-sm btn-primary" data-act="add-user">+ Пользователь</button>':'')+'</div></div>';
+  html += G.tableHTML(cols, DB.users, { title:'Пользователи' });
+  return html;
+}
+
+G.VIEWS.dash = viewDash;
+G.VIEWS.drivers = viewDrivers;
+G.VIEWS.cars = viewCars;
+G.VIEWS.fines = viewFines;
+G.VIEWS.mgmt = viewMgmt;
+G.VIEWS.refs = viewRefs;
+G.VIEWS.users = viewUsers;
+
+G.helpers = G.helpers || {};
+Object.assign(G.helpers, { statTile, driverById, carById, divName, orgName, doExport, driverBalanceCard, page });
+
+/* ---- actions ---- */
+Object.assign(G.ACTIONS, {
+  'open-driver': (t) => {
+    const d = driverById(t.dataset.id);
+    G.openModal({ title: d.fio, body: driverBalanceCard(d), footer:'<button class="btn btn-ghost" data-act="close-modal">Закрыть</button>' });
+  },
+  'open-car': (t) => {
+    const c = carById(t.dataset.id);
+    const d = S.DB.drivers.find(x=>x.car===c.id);
+    const body = '<div class="grid grid-2">'
+      + statTile('Модель', c.model,'') + statTile('Год', c.year,'')
+      + statTile('Пробег', num(c.mileage)+' км','') + statTile('Статус', c.status,'')
+      + statTile('Страховка', fmtD(c.insUntil),'') + statTile('Техосмотр', fmtD(c.techUntil),'')
+      + statTile('Водитель', d?d.fio:'—','')
+      + '</div>';
+    G.openModal({ title: c.plate, body, footer:'<button class="btn btn-ghost" data-act="close-modal">Закрыть</button>' });
+  },
+  'pay-fine': (t) => {
+    const f = S.DB.fines.find(x=>x.id===t.dataset.id);
+    if(f){ f.status='Оплачен'; G.toast('Штраф '+f.doc+' отмечен оплаченным'); }
+  },
+  'export-fines': () => {
+    const rows = S.DB.fines.filter(f=>f.status==='Не оплачен');
+    doExport('fines', rows, [
+      {label:'Документ', key:'doc'}, {label:'Сумма', key:'sum'}, {label:'Банк', key:'bank'}, {label:'Водитель', key:'driver'}
+    ]);
+  },
+  'approve-comp': (t) => {
+    const c = S.DB.comps.find(x=>x.id===t.dataset.id);
+    if(c){ c.status='Одобрено'; c.decidedBy=G.currentUser().name; c.decidedAt=U.iso(NOW); c.comment='Подтверждено, начислено на баланс';
+      const d = driverById(c.driverId);
+      if(d){ S.DB.cash.push(G.mkCash(d, NOW, 'Пополнение', c.sum, 'Менеджер', 'Баланс', G.currentUser().name)); G.recalcBalances(S.DB); }
+      G.toast('Компенсация одобрена'); }
+  },
+  'reject-comp': (t) => {
+    const c = S.DB.comps.find(x=>x.id===t.dataset.id);
+    if(c){ c.status='Отказано'; c.decidedBy=G.currentUser().name; c.decidedAt=U.iso(NOW); c.comment='Недостаточно подтверждающих документов'; G.toast('Компенсация отклонена'); }
+  },
+  'resolve-dupe': (t) => { S.DB.dupes = S.DB.dupes.filter(x=>x.id!==t.dataset.id); G.toast('Отмечено как не дубль'); },
+  'merge-dupe': (t) => { S.DB.dupes = S.DB.dupes.filter(x=>x.id!==t.dataset.id); G.toast('Карточки объединены'); }
+});
+
+})(typeof window !== 'undefined' ? window : globalThis);
+
+
+/* ---- 14-sections-ops.js ---- */
+/* ===== 14. OPERATIONS SECTIONS: repairs (7-phase board), handover,
+   shifts, inspections, incidents ===== */
+(function(global){
+'use strict';
+const G = global.GC, U = G.Utils, C = G.CONST, E = G.ENUM;
+const { esc, money, cur, pctS, num, fmtD, fmtDT, iso, shift, NOW, TODAY } = U;
+const S = G.S;
+const H = G.helpers;
+
+function orderByNo(no){ return S.DB.orders2.find(o=>o.no===no); }
+function driverName(id){ const d=S.DB.drivers.find(x=>x.id===id); return d?d.fio:'—'; }
+
+/* ============== REPAIRS ============== */
+function viewRepairs(tab){
+  if(tab===1) return viewRepairCalendar();
+  if(tab===2) return viewRepairPosts();
+  if(tab===3) return viewRepairParts();
+  if(tab===4) return viewRepairEfficiency();
+  return viewRepairBoard();
+}
+function viewRepairBoard(){
+  const DB = S.DB;
+  let html = '<div class="card-head"><h3>Наряд-заказы</h3>'
+    + '<div class="card-actions"><button class="btn btn-sm btn-primary" data-act="add-repair">+ Записать на ремонт</button></div></div>';
+  html += '<div class="phase-board">';
+  E.REPAIR_PHASES.forEach((label, i) => {
+    const orders = DB.orders2.filter(o=>o.phase===i);
+    html += '<div class="phase-col"><h4>'+(i)+'. '+esc(label)+' ('+orders.length+')</h4>';
+    orders.forEach(o => {
+      html += '<div class="phase-card" data-act="open-repair" data-no="'+esc(o.no)+'">'
+        + '<b>'+esc(o.no)+'</b>' + esc(o.car)+' · '+esc(o.model)+'<br>'
+        + '<span class="muted">'+esc(o.reason)+'</span><br>'
+        + G.statusPill(o.prio, o.prio==='Критично'?'bad':(o.prio==='Высокий'?'warn':'ok'))
+        + (o.demoOpen ? ' <span class="pill pill-ok">демо · сейчас</span>' : '')
+        + (o.demoBlocked ? ' <span class="pill pill-bad">вне окна</span>' : '')
+        + '</div>';
+    });
+    html += '</div>';
+  });
+  html += '</div>';
+  return html;
+}
+function repairModalBody(o){
+  const chk = G.canAdvance(o);
+  let html = '<div class="grid grid-2">'
+    + H.statTile('Авто', o.car+' · '+o.model,'') + H.statTile('Водитель', driverName(o.driverId),'')
+    + H.statTile('Причина', o.reason,'') + H.statTile('Приоритет', o.prio,'')
+    + H.statTile('Слот', fmtD(o.slotDay)+' '+o.slot,'') + H.statTile('Пост/механик', (o.post||'—')+' / '+(o.mech||'—'),'')
+    + '</div>';
+  if(o.phase===0){
+    html += '<div class="muted">Окно приёмки: '+G.intakeWindowLabel(o)+' (сейчас: '+fmtDT(U.NOW)+')</div>';
+  }
+  html += '<div><b>Работы:</b><ul>'+o.works.map(w=>'<li>'+esc(w.name)+' ('+w.h+' ч) '+(w.done?'✓':'')+'</li>').join('')+'</ul></div>';
+  if(o.parts.length){
+    html += '<div><b>Запчасти:</b><ul>'+o.parts.map(p=>'<li>'+esc(p.name)+' × '+p.qty+' — '+(p.issued?'выдано':'не выдано')+'</li>').join('')+'</ul></div>';
+  }
+  html += '<div class="muted">Возвратов на доработку: '+(o.returns||0)+'</div>';
+  if(!chk.ok) html += '<div class="pill pill-bad" style="display:block;margin-top:6px">'+esc(chk.reason)+'</div>';
+  return html;
+}
+function openRepairModal(no){
+  const o = orderByNo(no);
+  if(!o) return;
+  const chk = G.canAdvance(o);
+  const footer = '<button class="btn btn-ghost" data-act="close-modal">Закрыть</button>'
+    + (o.phase>0 ? '<button class="btn btn-ghost" data-act="repair-return" data-no="'+esc(o.no)+'">← Вернуть фазу</button>' : '')
+    + (o.phase<6 ? '<button class="btn btn-primary" data-act="repair-advance" data-no="'+esc(o.no)+'" '+(chk.ok?'':'disabled')+'>Продвинуть →</button>' : '');
+  G.openModal({ title: o.no+' · '+E.REPAIR_PHASES[o.phase], body: repairModalBody(o), footer });
+}
+function viewRepairCalendar(){
+  const DB = S.DB;
+  const day = S._calDay || U.iso(TODAY);
+  const slots = G.daySlots();
+  let html = '<div class="card-head"><h3>Календарь записи</h3>'
+    + '<div class="card-actions"><input type="date" id="calDayPick" data-act-input="cal-day" value="'+day+'"></div></div>';
+  html += '<div class="table-scroll"><table class="tbl"><thead><tr><th>Слот</th>'
+    + Object.keys(G.SHOPS).map(s=>'<th>'+esc(s)+'</th>').join('') + '</tr></thead><tbody>';
+  slots.forEach(slot => {
+    html += '<tr><td>'+slot+'</td>';
+    Object.keys(G.SHOPS).forEach(shop => {
+      const cap = G.SHOPS[shop].perSlot;
+      const booked = DB.orders2.filter(o=>o.slotDay===day && o.slot===slot && o.reason===shop).length;
+      html += '<td>'+booked+'/'+cap+(booked>=cap?' <span class="pill pill-bad">занято</span>':'')+'</td>';
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table></div>';
+  return html;
+}
+function viewRepairPosts(){
+  const DB = S.DB;
+  const bays = [...new Set(Object.values(G.SHOPS).map(s=>s.bay))];
+  let html = '<div class="grid grid-3">';
+  bays.forEach(bay => {
+    const active = DB.orders2.filter(o=>o.post===bay && o.phase>=2 && o.phase<6);
+    html += '<div class="card"><div class="card-head"><h3>'+esc(bay)+'</h3></div>'
+      + (active.length? active.map(o=>'<div class="phase-card"><b>'+esc(o.no)+'</b>'+esc(o.car)+' — '+esc(o.reason)+'<br><span class="muted">'+esc(o.mech)+'</span></div>').join('')
+        : '<div class="empty-state">Свободен</div>')
+      + '</div>';
+  });
+  html += '</div>';
+  html += '<div class="card"><div class="card-head"><h3>Загрузка механиков</h3></div><div class="grid grid-3">';
+  G.MECHANICS.forEach(m => {
+    const hrs = DB.orders2.filter(o=>o.mech===m.name && o.phase>=2 && o.phase<6)
+      .reduce((s,o)=>s+o.works.reduce((s2,w)=>s2+(w.done?0:w.h),0),0);
+    html += '<div class="stat-tile"><div class="l">'+esc(m.name)+'</div><div class="v">'+hrs.toFixed(1)+' ч</div>'
+      + '<div class="muted">'+esc(m.spec.join(', '))+'</div></div>';
+  });
+  html += '</div></div>';
+  return html;
+}
+function viewRepairParts(){
+  const DB = S.DB;
+  const cols = [
+    { label:'Артикул', key:'art' }, { label:'Название', key:'name' },
+    { label:'Остаток', render:p=> p.stock+(p.stock<=p.min?' <span class="pill pill-bad">мин.</span>':'') },
+    { label:'Мин. остаток', key:'min' }, { label:'Цена', render:p=>cur(p.price) }, { label:'Поставщик', key:'sup' }
+  ];
+  let html = '<div class="card-head"><div></div><div class="card-actions"><button class="btn btn-sm btn-primary" data-act="add-part">+ Приход</button></div></div>';
+  html += G.tableHTML(cols, DB.parts, { title:'Склад запчастей' });
+  return html;
+}
+function viewRepairEfficiency(){
+  const DB = S.DB;
+  const closed = DB.orders2.filter(o=>o.phase===6);
+  const avgReturns = DB.orders2.length ? DB.orders2.reduce((s,o)=>s+(o.returns||0),0)/DB.orders2.length : 0;
+  let html = '<div class="grid grid-3">'
+    + H.statTile('Закрыто наряд-заказов', closed.length,'')
+    + H.statTile('Среднее число возвратов', avgReturns.toFixed(2),'')
+    + H.statTile('Открыто сейчас', DB.orders2.filter(o=>o.phase<6).length,'')
+    + '</div>';
+  html += '<div class="card"><div class="card-head"><h3>Загрузка по механикам (ФОТ)</h3></div>';
+  const cols = [{label:'Механик',key:'name'},{label:'Специализация',render:m=>esc(m.spec.join(', '))},{label:'Оклад',render:m=>cur(m.salary)}];
+  html += G.tableHTML(cols, G.MECHANICS, {});
+  html += '</div>';
+  return html;
+}
+
+/* ============== HANDOVER ============== */
+function viewHandover(tab){
+  if(tab===1) return viewNewAct();
+  const DB = S.DB;
+  const cols = [
+    { label:'Дата', render:a=>fmtD(a.at) }, { label:'Вид', render:a=>G.statusPill(a.kind, a.kind==='Выдача'?'ok':'warn') },
+    { label:'Авто', key:'car' }, { label:'Водитель', key:'driver' }, { label:'Кем', key:'by' },
+    { label:'Повреждения', render:a=> a.dmg.length? a.dmg.map(d=>esc(d.zone)+' — '+esc(d.type)).join(', ') : '—' },
+    { label:'Подписан', render:a=>a.signed?'✓':'—' }
+  ];
+  return G.tableHTML(cols, DB.acts.slice().sort((a,b)=>new Date(b.at)-new Date(a.at)), { title:'Акты приёма-выдачи' });
+}
+function viewNewAct(){
+  const DB = S.DB;
+  const driverOpts = DB.drivers.filter(d=>d.car).map(d=>({value:d.id, label:d.fio}));
+  const body = G.mField('Вид акта','kind','select',{options:[{value:'Выдача',label:'Выдача'},{value:'Возврат',label:'Возврат'}]})
+    + G.mField('Водитель','driverId','select',{options:driverOpts})
+    + G.mField('Пробег','mileage','num')
+    + G.mField('Топливо, %','fuel','num')
+    + G.mField('Подписан','signed','checkbox');
+  return '<div class="card"><div class="card-head"><h3>Новый акт</h3></div><div class="modal-body" style="padding:0">'+body+'</div>'
+    + '<div style="margin-top:10px"><button class="btn btn-primary" data-act="create-act">Создать акт</button></div></div>';
+}
+
+/* ============== SHIFTS ============== */
+function viewShifts(tab){
+  if(tab===1) return viewReleaseToLine();
+  const DB = S.DB;
+  const defs = [
+    { key:'status', label:'Статус', type:'sel', options:E.SHIFT_STATUS },
+    { key:'driver', label:'Водитель', type:'text' }
+  ];
+  const filtered = G.applyFilters('shifts', DB.shifts.slice().sort((a,b)=>new Date(b.date)-new Date(a.date)), defs);
+  const cols = [
+    { label:'Дата', render:s=>fmtD(s.date) }, { label:'Водитель', key:'driver' }, { label:'Авто', key:'car' },
+    { label:'Начало', key:'start' }, { label:'Конец', key:'end' }, { label:'Часы', key:'hours' },
+    { label:'Заказы', key:'orders' }, { label:'Выручка', render:s=>cur(s.revenue) },
+    { label:'Путевой лист', render:s=>s.waybill?'✓':'—' }, { label:'Статус', render:s=>G.statusPill(s.status) }
+  ];
+  let html = '<div class="card-head"><div></div><div class="card-actions">'+G.filtersHTML('shifts', defs)+'</div></div>';
+  html += G.tableHTML(cols, filtered, { title:'Журнал смен ('+filtered.length+')', page:H.page('shifts'), pageKey:'shifts' });
+  return html;
+}
+function releaseChecks(d){
+  const car = S.DB.cars.find(c=>c.id===d.car);
+  const checks = [
+    { label:'Срок прав действителен', ok: U.daysBetween(NOW, new Date(d.licUntil)) >= 0 },
+    { label:'Документы авто действительны', ok: car ? (U.daysBetween(NOW,new Date(car.insUntil))>=0 && U.daysBetween(NOW,new Date(car.techUntil))>=0) : false },
+    { label:'Не в чёрном списке', ok: d.status!=='Заблокирован' },
+    { label:'Путевой лист выписан', ok: !!S.DB.shifts.find(s=>s.driverId===d.id && s.date===U.iso(TODAY) && s.waybill) },
+    { label:'Осмотр пройден', ok: !!S.DB.inspections.find(i=>i.driverId===d.id) }
+  ];
+  return checks;
+}
+function viewReleaseToLine(){
+  const DB = S.DB;
+  let html = '<div class="card"><div class="card-head"><h3>Выпуск на линию</h3></div>';
+  DB.drivers.filter(d=>d.car).forEach(d => {
+    const checks = releaseChecks(d);
+    const blocked = checks.some(c=>!c.ok);
+    html += '<div class="phase-card" style="margin-bottom:8px"><b>'+esc(d.fio)+'</b> — '+esc((S.DB.cars.find(c=>c.id===d.car)||{}).plate||'')
+      + ' ' + (blocked ? '<span class="pill pill-bad">Заблокирован</span>' : '<span class="pill pill-ok">Готов к выпуску</span>')
+      + '<div class="muted">'+checks.map(c=>(c.ok?'✓ ':'✗ ')+c.label).join(' · ')+'</div>'
+      + (!blocked ? '<button class="btn btn-sm btn-primary" data-act="release-driver" data-id="'+d.id+'" style="margin-top:6px">Выпустить</button>' : '')
+      + '</div>';
+  });
+  html += '</div>';
+  return html;
+}
+
+/* ============== INSPECTIONS ============== */
+function viewInspections(tab){
+  if(tab===1) return viewTariffs();
+  const DB = S.DB;
+  const cols = [
+    { label:'Дата', render:i=>fmtD(i.at) }, { label:'Авто', key:'car' }, { label:'Водитель', key:'driver' },
+    { label:'Вид', key:'kind' }, { label:'Механик', key:'mech' },
+    { label:'Повреждения', render:i=> i.dmg.length ? i.dmg.map(d=>esc(d.zone)+' ('+cur(d.price)+')').join(', ') : '—' },
+    { label:'Итого', render:i=>cur(i.total) },
+    { label:'', render:i=> (i.total>0 && !i.charged) ? '<button class="btn btn-sm btn-primary" data-act="charge-inspection" data-id="'+i.id+'">Начислить</button>' : (i.charged?'<span class="pill pill-ok">Начислено</span>':'') }
+  ];
+  return G.tableHTML(cols, DB.inspections.slice().sort((a,b)=>new Date(b.at)-new Date(a.at)), { title:'Журнал осмотров' });
+}
+function viewTariffs(){
+  const DB = S.DB;
+  const cols = [{label:'Зона',key:'zone'},{label:'Тип повреждения',key:'type'},{label:'Цена',render:t=>cur(t.price)}];
+  return G.tableHTML(cols, DB.tariffs, { title:'Тарифы повреждений' });
+}
+
+/* ============== INCIDENTS ============== */
+function viewIncidents(){
+  const DB = S.DB;
+  const cols = [
+    { label:'Дата', render:i=>fmtD(i.at) }, { label:'Авто', key:'car' }, { label:'Водитель', key:'driver' },
+    { label:'Тип', key:'type' }, { label:'Виновник', key:'guilty' }, { label:'Сумма', render:i=>cur(i.sum) },
+    { label:'Страховая', key:'insurer' }, { label:'Покрытие', render:i=>G.statusPill(i.cover) },
+    { label:'Статус', render:i=>G.statusPill(i.status) }
+  ];
+  let html = '<div class="card-head"><div></div><div class="card-actions"><button class="btn btn-sm btn-primary" data-act="add-incident">+ Случай</button></div></div>';
+  html += G.tableHTML(cols, DB.incidents, { title:'Реестр случаев' });
+  return html;
+}
+
+G.VIEWS.repairs = viewRepairs;
+G.VIEWS.handover = viewHandover;
+G.VIEWS.shifts = viewShifts;
+G.VIEWS.inspections = viewInspections;
+G.VIEWS.incidents = viewIncidents;
+
+Object.assign(G.ACTIONS, {
+  'open-repair': (t) => openRepairModal(t.dataset.no),
+  'repair-advance': (t) => {
+    const o = orderByNo(t.dataset.no);
+    const r = G.advancePhase(o);
+    if(r.ok) { G.toast(o.no+' → '+E.REPAIR_PHASES[o.phase]); G.closeModal(); }
+    else { G.toast(r.reason); }
+  },
+  'repair-return': (t) => {
+    const o = orderByNo(t.dataset.no);
+    const r = G.returnPhase(o);
+    if(r.ok){ G.toast(o.no+' возвращён на «'+E.REPAIR_PHASES[o.phase]+'»'); G.closeModal(); }
+  },
+  'release-driver': (t) => { G.toast('Водитель выпущен на линию'); },
+  'charge-inspection': (t) => {
+    const insp = S.DB.inspections.find(x=>x.id===t.dataset.id);
+    if(!insp) return;
+    insp.charged = true;
+    const d = S.DB.drivers.find(x=>x.id===insp.driverId);
+    if(d){ S.DB.cash.push(G.mkCash(d, U.NOW, 'Списание', insp.total, 'Менеджер', 'Баланс повреждений', G.currentUser().name)); G.recalcBalances(S.DB); }
+    G.toast('Начислено на баланс повреждений: '+cur(insp.total));
+  }
+});
+
+})(typeof window !== 'undefined' ? window : globalThis);
+
+
+/* ---- 15-sections-money.js ---- */
+/* ===== 15. MONEY & COMMS SECTIONS: deposits, contracts, leasing, pnl,
+   tickets, import, comments ===== */
+(function(global){
+'use strict';
+const G = global.GC, U = G.Utils, C = G.CONST, E = G.ENUM;
+const { esc, cur, pctS, num, fmtD, fmtDT, NOW } = U;
+const S = G.S;
+const H = G.helpers;
+
+/* ============== DEPOSITS ============== */
+function viewDeposits(tab){
+  if(tab===1) return viewPayouts();
+  const DB = S.DB;
+  const cols = [
+    { label:'Водитель', key:'driver' }, { label:'Авто', key:'car' },
+    { label:'Норма', render:d=>cur(d.target) }, { label:'Внесено', render:d=>cur(d.amount) },
+    { label:'Заполнение', render:d=>G.barBlock(d.target? d.amount/d.target*100:0, d.amount<d.target?'warn':'ok') },
+    { label:'В день', render:d=>cur(d.perDay) }, { label:'Последнее пополнение', render:d=>fmtD(d.last) }
+  ];
+  return G.tableHTML(cols, DB.deposits, { title:'Депозиты водителей' });
+}
+function viewPayouts(){
+  const DB = S.DB;
+  const defs = [{ key:'status', label:'Статус', type:'sel', options:E.PAYOUT_STATUS }];
+  const filtered = G.applyFilters('payouts', DB.payouts.slice().sort((a,b)=>new Date(b.at)-new Date(a.at)), defs);
+  const cols = [
+    { label:'Дата', render:p=>fmtD(p.at) }, { label:'Водитель', key:'driver' }, { label:'Сумма', render:p=>cur(p.amount) },
+    { label:'Метод', key:'method' }, { label:'Поездок', key:'trips' }, { label:'Стоимость', render:p=>cur(p.cost) },
+    { label:'Длит., мин', key:'dur' }, { label:'В час', key:'perHour' },
+    { label:'Флаги', render:p=> p.flags.length ? p.flags.map(f=>'<span class="pill pill-warn">'+esc(f)+'</span>').join(' ') : '—' },
+    { label:'Статус', render:p=>G.statusPill(p.status) },
+    { label:'', render:p=> p.status==='На проверке'
+      ? '<button class="btn btn-sm btn-primary" data-act="approve-payout" data-id="'+p.id+'">Одобрить</button> <button class="btn btn-sm btn-ghost" data-act="reject-payout" data-id="'+p.id+'">Отклонить</button>'
+      : '' }
+  ];
+  let html = '<div class="card-head"><div></div><div class="card-actions">'+G.filtersHTML('payouts', defs)+'</div></div>';
+  html += G.tableHTML(cols, filtered, { title:'Моментальные выплаты ('+filtered.length+')', page:H.page('payouts'), pageKey:'payouts' });
+  return html;
+}
+
+/* ============== CONTRACTS ============== */
+function viewContracts(){
+  const DB = S.DB;
+  const cols = [
+    { label:'Водитель', key:'driver' }, { label:'Тип', key:'type' }, { label:'Авто', key:'car' },
+    { label:'От', render:c=>fmtD(c.at) }, { label:'До', render:c=>fmtD(c.until) },
+    { label:'Подпись', key:'sign' }, { label:'Статус', render:c=>G.statusPill(c.status) }
+  ];
+  return G.tableHTML(cols, DB.contracts, { title:'Электронные документы ('+DB.contracts.length+')' });
+}
+
+/* ============== LEASING ============== */
+function viewLeasing(tab){
+  if(tab===1) return viewLeaseSchedule();
+  const DB = S.DB;
+  const cols = [
+    { label:'Авто', key:'car' }, { label:'Модель', key:'model' }, { label:'Лизингодатель', key:'lessor' },
+    { label:'Платёж/мес', render:l=>cur(l.monthly) }, { label:'Срок', render:l=>l.paid+'/'+l.months },
+    { label:'Осталось', render:l=>cur(l.rest) }, { label:'Выкуп', render:l=>cur(l.buyout) },
+    { label:'Статус', render:l=>G.statusPill(l.status) }
+  ];
+  return G.tableHTML(cols, DB.leases, { title:'Договоры лизинга' });
+}
+function viewLeaseSchedule(){
+  const DB = S.DB;
+  const rows = DB.leases.slice().sort((a,b)=> new Date(a.next)-new Date(b.next));
+  const cols = [
+    { label:'Авто', key:'car' }, { label:'Следующий платёж', render:l=>fmtD(l.next) },
+    { label:'Сумма', render:l=>cur(l.monthly) }, { label:'Прогресс', render:l=>G.barBlock(l.months? l.paid/l.months*100:0) }
+  ];
+  return G.tableHTML(cols, rows, { title:'График платежей' });
+}
+
+/* ============== P&L ============== */
+function viewPnl(tab){
+  if(tab===1) return viewPnlPlanFact();
+  const DB = S.DB;
+  const defs = [
+    { key:'type', label:'Тип', type:'sel', options:['Доход','Расход'] },
+    { key:'cat', label:'Категория', type:'text' }
+  ];
+  const filtered = G.applyFilters('pnl', DB.pnl.slice().sort((a,b)=>new Date(b.at)-new Date(a.at)), defs);
+  const cols = [
+    { label:'Дата', render:p=>fmtD(p.at) }, { label:'Тип', render:p=>G.statusPill(p.type, p.type==='Доход'?'ok':'bad') },
+    { label:'Категория', key:'cat' }, { label:'Сумма', render:p=>cur(p.amount) }, { label:'Авто', key:'car' }
+  ];
+  let html = '<div class="card-head"><div></div><div class="card-actions">'+G.filtersHTML('pnl', defs)
+    + '<button class="btn btn-sm btn-primary" data-act="add-pnl">+ Операция</button></div></div>';
+  html += G.tableHTML(cols, filtered, { title:'Операции ('+filtered.length+')', page:H.page('pnl'), pageKey:'pnl' });
+  return html;
+}
+function viewPnlPlanFact(){
+  const DB = S.DB;
+  const cats = [...new Set(DB.pnl.map(p=>p.cat))];
+  const rows = cats.map(cat => {
+    const fact = DB.pnl.filter(p=>p.cat===cat).reduce((s,p)=> s + (p.type==='Доход'?p.amount:-p.amount), 0);
+    const plan = Math.round(fact*1.08);
+    return { cat, fact, plan };
+  });
+  const cols = [
+    { label:'Категория', key:'cat' }, { label:'План', render:r=>cur(r.plan) }, { label:'Факт', render:r=>cur(r.fact) },
+    { label:'Исполнение', render:r=> r.plan? pctS(Math.abs(r.fact)/Math.abs(r.plan||1)) : '—' }
+  ];
+  return G.tableHTML(cols, rows, { title:'План и факт' });
+}
+
+/* ============== TICKETS ============== */
+function viewTickets(tab){
+  if(tab===1) return viewMailings();
+  const DB = S.DB;
+  const defs = [{ key:'status', label:'Статус', type:'sel', options:['Новое','В работе','Решено'] }];
+  const filtered = G.applyFilters('tickets', DB.tickets.slice().sort((a,b)=>new Date(b.at)-new Date(a.at)), defs);
+  const cols = [
+    { label:'Дата', render:t=>fmtD(t.at) }, { label:'Водитель', key:'driver' }, { label:'Тема', key:'theme' },
+    { label:'Ответственный', key:'mgr' }, { label:'SLA', key:'sla' }, { label:'Статус', render:t=>G.statusPill(t.status) },
+    { label:'', render:t=> t.status!=='Решено' ? '<button class="btn btn-sm btn-primary" data-act="resolve-ticket" data-id="'+t.id+'">Решено</button>' : '' }
+  ];
+  let html = '<div class="card-head"><div></div><div class="card-actions">'+G.filtersHTML('tickets', defs)+'</div></div>';
+  html += G.tableHTML(cols, filtered, { title:'Обращения ('+filtered.length+')', page:H.page('tickets'), pageKey:'tickets' });
+  return html;
+}
+function viewMailings(){
+  const DB = S.DB;
+  const cols = [
+    { label:'Название', key:'name' }, { label:'Канал', key:'channel' }, { label:'Отправлено', key:'sent' },
+    { label:'Открыто', render:m=> m.opened+' ('+pctS(m.sent?m.opened/m.sent:0)+')' }, { label:'Дата', render:m=>fmtD(m.at) }
+  ];
+  let html = '<div class="card-head"><div></div><div class="card-actions"><button class="btn btn-sm btn-primary" data-act="add-mailing">+ Рассылка</button></div></div>';
+  html += G.tableHTML(cols, DB.mailings, { title:'Рассылки' });
+  return html;
+}
+
+/* ============== IMPORT ============== */
+function viewImport(tab){
+  if(tab===1) return viewImportHistory();
+  return '<div class="card"><div class="card-head"><h3>Загрузка файла</h3></div>'
+    + '<div class="muted">Загрузите CSV-файл со списком водителей для массового импорта.</div>'
+    + '<input type="file" id="importFile" accept=".csv" style="margin:12px 0">'
+    + '<div><button class="btn btn-primary" data-act="import-file">Импортировать</button></div></div>';
+}
+function viewImportHistory(){
+  const DB = S.DB;
+  const cols = [
+    { label:'Дата', render:i=>fmtDT(i.at) }, { label:'Файл', key:'file' }, { label:'Строк', key:'rows' },
+    { label:'Успешно', key:'ok' }, { label:'Ошибок', key:'errors' }, { label:'Кто', key:'by' }
+  ];
+  return G.tableHTML(cols, DB.imports, { title:'История загрузок' });
+}
+
+/* ============== COMMENTS ============== */
+function viewComments(){
+  const DB = S.DB;
+  const cols = [
+    { label:'Дата', render:c=>fmtDT(c.at) }, { label:'Автор', key:'by' }, { label:'Раздел', key:'section' },
+    { label:'Объект', key:'obj' }, { label:'Комментарий', key:'text' }
+  ];
+  let html = '<div class="card"><div class="card-head"><h3>Новый комментарий</h3></div>'
+    + '<textarea id="newCommentText" placeholder="Текст комментария" style="width:100%;min-height:60px;padding:8px;border:1px solid var(--line);border-radius:8px"></textarea>'
+    + '<div style="margin-top:8px"><button class="btn btn-primary" data-act="add-comment">Добавить</button></div></div>';
+  html += G.tableHTML(cols, DB.comments.slice().sort((a,b)=>new Date(b.at)-new Date(a.at)), { title:'Все комментарии' });
+  return html;
+}
+
+G.VIEWS.deposits = viewDeposits;
+G.VIEWS.contracts = viewContracts;
+G.VIEWS.leasing = viewLeasing;
+G.VIEWS.pnl = viewPnl;
+G.VIEWS.tickets = viewTickets;
+G.VIEWS.import = viewImport;
+G.VIEWS.comments = viewComments;
+
+Object.assign(G.ACTIONS, {
+  'approve-payout': (t) => { const p=S.DB.payouts.find(x=>x.id===t.dataset.id); if(p){ p.status='Выплачена'; G.toast('Выплата одобрена'); } },
+  'reject-payout': (t) => { const p=S.DB.payouts.find(x=>x.id===t.dataset.id); if(p){ p.status='Отклонена'; G.toast('Выплата отклонена'); } },
+  'resolve-ticket': (t) => { const x=S.DB.tickets.find(k=>k.id===t.dataset.id); if(x){ x.status='Решено'; G.toast('Обращение закрыто'); } },
+  'import-file': () => {
+    const inp = document.getElementById('importFile');
+    const name = (inp && inp.files && inp.files[0]) ? inp.files[0].name : 'demo.csv';
+    S.DB.imports.push({ id:'imp-'+(S.DB.imports.length+1), at:U.NOW, file:name, rows: U.randInt ? U.randInt(Math.random,5,40) : 20, ok: 18, errors: 2, by: G.currentUser().name });
+    G.toast('Импорт запущен: '+name);
+  },
+  'add-comment': () => {
+    const ta = document.getElementById('newCommentText');
+    const text = ta ? ta.value.trim() : '';
+    if(!text){ G.toast('Введите текст комментария'); return; }
+    S.DB.comments.push({ id:'cm-'+(S.DB.comments.length+1), at:U.NOW, by:G.currentUser().name, section:U.esc(S.sec), obj:'—', text });
+    G.toast('Комментарий добавлен');
+  }
+});
+
+})(typeof window !== 'undefined' ? window : globalThis);
+
+
+/* ---- 16-sections-analytics.js ---- */
+/* ===== 16. ANALYTICS: stats (summary/divisions/debt-matrix/collection/
+   KPI/traffic-light), dispatch, tasks, notifications ===== */
+(function(global){
+'use strict';
+const G = global.GC, U = G.Utils, C = G.CONST, E = G.ENUM;
+const { esc, cur, pctS, num, fmtD, fmtDT, NOW, daysBetween } = U;
+const S = G.S;
+const H = G.helpers;
+
+/* ============== STATS ============== */
+function viewStats(tab){
+  if(tab===1) return viewStatsDivisions();
+  if(tab===2) return viewDebtMatrix();
+  if(tab===3) return viewCollection();
+  if(tab===4) return viewKPI();
+  if(tab===5) return viewTrafficLight();
+  return viewStatsSummary();
+}
+function viewStatsSummary(){
+  const DB = S.DB;
+  const totals = G.ledgerTotals(DB);
+  const kpiAvg = DB._kpi.reduce((s,m)=>s+m.avgAchievement,0)/(DB._kpi.length||1);
+  const work = DB.cars.filter(c=>c.status==='В работе').length;
+  let html = '<div class="grid grid-4">'
+    + H.statTile('Собираемость аренды', pctS(totals.rate),'')
+    + H.statTile('Утилизация парка', pctS(work/DB.cars.length),'')
+    + H.statTile('KPI менеджеров', pctS(kpiAvg),'')
+    + H.statTile('Открытых обращений', DB.tickets.filter(t=>t.status!=='Решено').length,'')
+    + '</div>';
+  html += '<div class="card"><div class="card-head"><h3>Динамика собираемости, 9 мес.</h3></div>';
+  const spark = DB._collection.months.map((m,i)=>{
+    let acc=0,col=0; Object.values(DB._collection.perDriver).forEach(p=>{acc+=p.monthly[i].accrued;col+=p.monthly[i].collected;});
+    return acc?col/acc*100:0;
+  });
+  html += G.lineChartMulti([{name:'Собираемость',color:'#ffc629',values:spark}],700,200);
+  html += '</div>';
+  return html;
+}
+function viewStatsDivisions(){
+  const DB = S.DB;
+  const rows = DB.divs.map(dv => {
+    const cars = DB.cars.filter(c=>c.div===dv.id);
+    const drivers = DB.drivers.filter(d=>d.div===dv.id && d.car);
+    const work = cars.filter(c=>c.status==='В работе').length;
+    const accrued = drivers.reduce((s,d)=> s + G.sumSrc(DB,d.id,'Баланс')*0,0); // placeholder not used
+    const totals = drivers.reduce((acc,d)=>{
+      const rentOps = DB.cash.filter(c=>c.driverId===d.id && c.src==='Баланс' && !c.carry);
+      acc.accrued += rentOps.filter(c=>c.type==='Списание').reduce((s,c)=>s+c.amt,0);
+      acc.collected += rentOps.filter(c=>c.type==='Пополнение').reduce((s,c)=>s+c.amt,0);
+      return acc;
+    }, {accrued:0, collected:0});
+    return { name: dv.name, manager: dv.manager, cars: cars.length, work, drivers: drivers.length,
+      rate: totals.accrued ? totals.collected/totals.accrued : 0 };
+  });
+  const cols = [
+    { label:'Филиал', key:'name' }, { label:'Менеджер', key:'manager' },
+    { label:'Автомобили', render:r=>r.work+'/'+r.cars }, { label:'Водители', key:'drivers' },
+    { label:'Собираемость', render:r=>pctS(r.rate) }
+  ];
+  return G.tableHTML(cols, rows, { title:'Подразделения' });
+}
+function viewDebtMatrix(){
+  const DB = S.DB;
+  const matrix = G.debtMatrix(DB, 14); // last 14 days fits the page width comfortably
+  const days = matrix[0] ? matrix[0].cells.map(c=>c.day.slice(5)) : [];
+  let html = '<div class="card-head"><h3>Задолженность по дням</h3><div class="muted">Столбец «сегодня» равен балансу в разделе «Водители»</div></div>';
+  html += '<div class="table-scroll"><table class="tbl"><thead><tr><th>Водитель</th><th>Бакет</th>'
+    + days.map(d=>'<th>'+d+'</th>').join('') + '<th>Меры</th></tr></thead><tbody>';
+  matrix.forEach(row => {
+    const debtDays = G.daysInDebt(row.cells);
+    const bucket = G.agingBucket(debtDays) || '—';
+    html += '<tr><td><b>'+esc(row.driver)+'</b></td><td>'+bucket+'</td>';
+    row.cells.forEach(c => {
+      const neg = c.balance < 0;
+      const depth = Math.min(1, Math.abs(c.balance)/2000);
+      const bg = neg ? 'rgba(214,69,69,'+ (0.12+depth*0.55).toFixed(2) +')' : 'transparent';
+      html += '<td class="heat-cell" style="background:'+bg+'">'+ (neg ? U.num(c.balance) : '<span class="dot"></span>') + '</td>';
+    });
+    html += '<td><button class="btn btn-sm btn-ghost" data-act="debt-measure" data-id="'+row.driverId+'">Меры</button></td></tr>';
+  });
+  html += '</tbody></table></div>';
+  return html;
+}
+function viewCollection(){
+  const DB = S.DB;
+  const months = DB._collection.months;
+  const agg = months.map((m,i) => {
+    let acc=0,col=0; Object.values(DB._collection.perDriver).forEach(p=>{acc+=p.monthly[i].accrued;col+=p.monthly[i].collected;});
+    return { month:m, accrued:acc, collected:col };
+  });
+  const cashTotals = G.ledgerTotals(DB);
+  let html = '<div class="card"><div class="card-head"><h3>Собираемость по месяцам</h3></div>';
+  html += G.lineChartMulti([{name:'Собираемость',color:'#ffc629', values: agg.map(a=>a.accrued?a.collected/a.accrued*100:0)}], 700, 200);
+  html += '</div>';
+  const cols = [
+    { label:'Месяц', key:'month' }, { label:'Начислено', render:r=>cur(r.accrued) },
+    { label:'Собрано', render:r=>cur(r.collected) }, { label:'%', render:r=>pctS(r.accrued?r.collected/r.accrued:0) }
+  ];
+  html += G.tableHTML(cols, agg, { title:'По месяцам (сентябрь = данные кассы: '+pctS(cashTotals.rate)+')' });
+  return html;
+}
+function viewKPI(){
+  const DB = S.DB;
+  const kpis = DB._kpi;
+  const avg = kpis.reduce((s,m)=>s+m.avgAchievement,0)/(kpis.length||1);
+  let html = '<div class="card"><div class="card-head"><h3>Итог по компании</h3></div>'
+    + '<div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">'
+    + G.ring(avg, 120) + '<div class="grid grid-3" style="flex:1">'
+    + G.KPI_METRICS.map(m => {
+        const factAvg = kpis.reduce((s,k)=>s+k.facts[m.key],0)/(kpis.length||1);
+        return H.statTile(m.name, (m.inverted?pctS(factAvg):pctS(factAvg)), 'план '+pctS(m.plan));
+      }).join('')
+    + '</div></div></div>';
+
+  html += '<div class="grid grid-2">';
+  kpis.forEach(m => {
+    const initials = m.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    html += '<div class="card"><div class="card-head"><h3>'+esc(m.name)+'</h3>'+G.ring(m.avgAchievement, 64, pctS(m.avgAchievement))+'</div>';
+    html += '<div class="grid grid-3">';
+    G.KPI_METRICS.forEach(metric => {
+      const fact = m.facts[metric.key];
+      html += '<div class="stat-tile"><div class="l">'+esc(metric.name)+'</div>'+G.gauge(metric.inverted?1-fact:fact, metric.inverted?1-metric.plan:metric.plan, metric.inverted?1-metric.floor:metric.floor, 110, fact)+'<div class="muted">факт '+pctS(fact)+'</div></div>';
+    });
+    html += '</div>';
+    html += '<div class="grid grid-3" style="margin-top:8px">'
+      + H.statTile('Оклад + бонус', cur(m.payout),'')
+      + H.statTile('Бонус', cur(m.bonus),'')
+      + H.statTile('Списано', m.woN+' / '+cur(m.wo),'')
+      + '</div>';
+    if(m.chips.length) html += '<div style="margin-top:8px">'+m.chips.map(c=>'<span class="pill pill-bad" style="display:inline-block;margin:2px">'+esc(c)+'</span>').join('')+'</div>';
+    html += '</div>';
+  });
+  html += '</div>';
+
+  html += '<div class="card"><div class="card-head"><h3>Матрица бонусов</h3></div>';
+  const cols = [
+    { label:'Менеджер', key:'name' },
+    ...G.KPI_METRICS.map(m => ({ label:m.name, render:(r)=>pctS(r.facts[m.key]) })),
+    { label:'Бонус', render:r=>cur(r.bonus) }, { label:'Выплата', render:r=>cur(r.payout) }
+  ];
+  html += G.tableHTML(cols, kpis, {});
+  html += '</div>';
+
+  html += '<div class="card"><div class="card-head"><h3>Автопарк по менеджерам</h3></div><div class="grid grid-2">';
+  kpis.forEach(m => html += H.statTile(m.name, pctS(m.facts.utilization), m.driverCount+' водителей, '+m.carCount+' авто'));
+  html += '</div></div>';
+
+  const leavers = DB.drivers.filter(d=>d.status==='Уволен');
+  html += '<div class="card"><div class="card-head"><h3>Уволенные с долгом</h3></div>';
+  const lcols = [{label:'ФИО',key:'fio'},{label:'Дата увольнения',render:d=>fmtD(d.fired)},{label:'Баланс',render:d=>cur(d.bal)}];
+  html += G.tableHTML(lcols, leavers, {});
+  html += '</div>';
+  return html;
+}
+function viewTrafficLight(){
+  const DB = S.DB;
+  const rows = DB.drivers.filter(d=>d.car).map(d => {
+    const kind = d._disc>=0.95 ? 'ok' : (d._disc>=0.85 ? 'warn' : 'bad');
+    return { fio:d.fio, disc:d._disc, bal:d.bal, kind };
+  });
+  const cols = [
+    { label:'Водитель', key:'fio' },
+    { label:'Дисциплина', render:r=>pctS(r.disc) },
+    { label:'Баланс', render:r=>cur(r.bal) },
+    { label:'Светофор', render:r=>'<span class="pill pill-'+r.kind+'">'+(r.kind==='ok'?'Зелёный':r.kind==='warn'?'Жёлтый':'Красный')+'</span>' }
+  ];
+  return G.tableHTML(cols, rows.sort((a,b)=>a.disc-b.disc), { title:'Светофор дисциплины' });
+}
+
+/* ============== DISPATCH ============== */
+function viewDispatch(){
+  const DB = S.DB;
+  const pts = DB._dispatch;
+  const box = { latMin:33.4, latMax:34.1, lngMin:-7.7, lngMax:-6.7 };
+  const w=700,h=340;
+  const toXY = (p) => {
+    const x = (p.lng-box.lngMin)/(box.lngMax-box.lngMin)*w;
+    const y = h - (p.lat-box.latMin)/(box.latMax-box.latMin)*h;
+    return [x,y];
+  };
+  let svg = '<svg viewBox="0 0 '+w+' '+h+'" class="linechart" style="height:340px;background:#f7f4ec;border-radius:8px">';
+  pts.forEach(p => {
+    const [x,y] = toXY(p);
+    const color = p.status==='На линии' ? '#2e9e5b' : '#c9891c';
+    svg += '<circle cx="'+x+'" cy="'+y+'" r="6" fill="'+color+'" stroke="#fff" stroke-width="1.5"/>';
+  });
+  svg += '</svg>';
+  let html = '<div class="card"><div class="card-head"><h3>Диспетчерская карта</h3>'
+    + '<div class="muted">Синтетические координаты — точка интеграции с реальным GPS-провайдером: DISP.feed()</div></div>' + svg + '</div>';
+  const cols = [
+    { label:'Водитель', key:'driver' }, { label:'Авто', key:'car' }, { label:'Город', key:'city' },
+    { label:'Статус', render:p=>G.statusPill(p.status) }, { label:'Скорость', render:p=>p.speed+' км/ч' }
+  ];
+  html += G.tableHTML(cols, pts, { title:'Список' });
+  return html;
+}
+
+/* ============== TASKS ============== */
+function viewTasks(){
+  const DB = S.DB;
+  const role = S.role;
+  const tasks = [];
+  if(['Приёмщик на ремонт','Кантри-менеджер','Менеджер парка'].includes(role)){
+    DB.orders2.filter(o=>o.phase===0).forEach(o => tasks.push({ sec:'repairs', title:'Приёмка '+o.no, sub: o.car+' · окно '+G.intakeWindowLabel(o), prio: o.demoOpen?'Критично':'Обычный' }));
+  }
+  if(['Механик','Кантри-менеджер','Менеджер парка'].includes(role)){
+    DB.orders2.filter(o=>o.phase===2||o.phase===4).forEach(o => tasks.push({ sec:'repairs', title:'Работы по '+o.no, sub: o.reason, prio:o.prio }));
+  }
+  if(['Кладовщик','Кантри-менеджер','Менеджер парка'].includes(role)){
+    DB.orders2.filter(o=>o.phase===3).forEach(o => tasks.push({ sec:'repairs', title:'Выдать запчасти '+o.no, sub: o.parts.map(p=>p.name).join(', '), prio:'Обычный' }));
+  }
+  DB.tickets.filter(t=>t.status!=='Решено').slice(0,5).forEach(t => tasks.push({ sec:'tickets', title:'Обращение: '+t.theme, sub:t.driver, prio:'Обычный' }));
+  const cols = [
+    { label:'Задача', key:'title' }, { label:'Детали', key:'sub' },
+    { label:'Приоритет', render:r=>G.statusPill(r.prio, r.prio==='Критично'?'bad':(r.prio==='Высокий'?'warn':'ok')) },
+    { label:'', render:r=>'<button class="btn btn-sm btn-ghost" data-act="goto" data-sec="'+r.sec+'" data-tab="0">Перейти</button>' }
+  ];
+  return G.tableHTML(cols, tasks, { title:'Мои задачи ('+tasks.length+')' });
+}
+
+/* ============== NOTIFICATIONS ============== */
+function buildNotifRows(){
+  const DB = S.DB;
+  const rows = [];
+  const in30 = (d) => daysBetween(NOW, new Date(d)) <= 30;
+  DB.drivers.forEach(d => { if(d.licUntil && in30(d.licUntil)) rows.push({ kind:'Документы', obj:d.fio, msg:'Срок прав истекает', date:d.licUntil }); });
+  DB.cars.forEach(c => {
+    if(in30(c.insUntil)) rows.push({ kind:'Документы', obj:c.plate, msg:'Страховка истекает', date:c.insUntil });
+    if(in30(c.techUntil)) rows.push({ kind:'Документы', obj:c.plate, msg:'Техосмотр истекает', date:c.techUntil });
+  });
+  DB.leases.forEach(l => { if(in30(l.next)) rows.push({ kind:'Финансы', obj:l.car, msg:'Платёж по лизингу', date:l.next }); });
+  DB.fines.forEach(f => { if(f.status==='Не оплачен' && f.sum>1000) rows.push({ kind:'Финансы', obj:f.driver, msg:'Неоплаченный штраф '+cur(f.sum), date:f.violAt }); });
+  return rows;
+}
+function viewNotif(tab){
+  const rows = buildNotifRows();
+  const filtered = tab===1 ? rows.filter(r=>r.kind==='Документы') : (tab===2 ? rows.filter(r=>r.kind==='Финансы') : rows);
+  const cols = [
+    { label:'Категория', key:'kind' }, { label:'Объект', key:'obj' }, { label:'Сообщение', key:'msg' }, { label:'Дата', render:r=>fmtD(r.date) }
+  ];
+  return G.tableHTML(cols, filtered.sort((a,b)=>new Date(a.date)-new Date(b.date)), { title:'Уведомления ('+filtered.length+')' });
+}
+
+G.VIEWS.stats = viewStats;
+G.VIEWS.dispatch = viewDispatch;
+G.VIEWS.tasks = viewTasks;
+G.VIEWS.notif = viewNotif;
+
+Object.assign(G.ACTIONS, {
+  'debt-measure': (t) => {
+    const d = S.DB.drivers.find(x=>x.id===t.dataset.id);
+    if(!d) return;
+    d.tags = d.tags || [];
+    const riskTag = S.DB.tags.find(tg=>tg.name==='Риск');
+    if(riskTag && !d.tags.includes(riskTag.id)) d.tags.push(riskTag.id);
+    G.toast('Водитель '+d.fio+' направлен в центр взыскания и помечен тегом «Риск»');
+  }
+});
+
+})(typeof window !== 'undefined' ? window : globalThis);
+
+
+/* ---- 17-permissions.js ---- */
+/* ===== 17. PERMISSIONS EDITOR (Настройки → Пользователи → «Изменить права») ===== */
+(function(global){
+'use strict';
+const G = global.GC, U = G.Utils, E = G.ENUM;
+const { esc } = U;
+const S = G.S;
+
+const RIGHT_DESC = {
+  'Все разделы': 'Полный доступ ко всем 23 разделам приложения, минуя проверку по ролям.',
+  'Водители': 'Просмотр и редактирование карточек водителей, баланс, теги, заметки.',
+  'Автопарк': 'Просмотр и редактирование автомобилей, документов, статусов.',
+  'Касса': 'Просмотр кассовых операций и создание новых проводок.',
+  'Штрафы': 'Работа с реестром штрафов и выгрузками в банк.',
+  'Рассрочка': 'Оформление и контроль рассрочек по удержаниям.',
+  'Ремонты': 'Ведение наряд-заказов на ремонт по всем 7 фазам.',
+  'Ремонты: склад': 'Выдача и учёт запчастей на складе автосервиса.',
+  'Приём-выдача': 'Оформление актов приёма и выдачи автомобилей.',
+  'Путевые листы': 'Выпуск на линию и журнал смен.',
+  'Компенсации: запросы': 'Создание запросов на компенсацию водителю.',
+  'Компенсации: одобрение': 'Одобрение или отклонение запросов на компенсацию.',
+  'Справочники': 'Редактирование справочников (организации, банки, теги и т.д.).',
+  'Пользователи': 'Управление учётными записями и правами доступа.'
+};
+
+function sectionGroups(){
+  const groups = {};
+  G.MENU.forEach(g => g.items.forEach(it => {
+    groups[g.group] = groups[g.group] || [];
+    if(!groups[g.group].includes(it.key)) groups[g.group].push(it.key);
+  }));
+  return groups;
+}
+
+function openRightsEditor(userId){
+  const u = S.DB.users.find(x=>x.id===userId);
+  if(!u) return;
+  const groups = sectionGroups();
+  const currentSections = G.ROLE_SECTIONS[u.appRole] || [];
+  let body = '<div class="muted">Изменение прав пользователя <b>'+esc(u.name)+'</b> (роль доступа: '+esc(u.appRole)+').</div>';
+  body += '<div><b>Функциональные права</b></div>';
+  body += G.ENUM.RIGHTS.map(r => {
+    const checked = u.rights.includes(r);
+    return '<label class="m-field m-check"><input type="checkbox" data-right="'+esc(r)+'" '+(checked?'checked':'')+'> '
+      + '<span><b>'+esc(r)+'</b><br><span class="muted">'+esc(RIGHT_DESC[r]||'')+'</span></span></label>';
+  }).join('');
+  body += '<div style="margin-top:10px"><b>Доступные разделы для роли «'+esc(u.appRole)+'»</b>'
+    + '<div class="pill pill-warn" style="display:inline-block;margin-left:8px">Изменения применятся ко всем сотрудникам с этой ролью</div></div>';
+  Object.keys(groups).forEach(g => {
+    body += '<div class="muted" style="margin-top:6px">'+esc(g)+'</div>';
+    groups[g].forEach(key => {
+      const label = G.SECTION_LABEL[key] || key;
+      const checked = currentSections.includes(key);
+      const isDash = key==='dash';
+      body += '<label class="m-field m-check"><input type="checkbox" data-section="'+esc(key)+'" '+(checked?'checked':'')+' '+(isDash?'disabled':'')+'> '
+        + esc(label) + (isDash?' <span class="muted">(всегда включён)</span>':'') + '</label>';
+    });
+  });
+
+  G.openModal({
+    title: 'Изменить права', body,
+    saveLabel:'Сохранить',
+    onSave: () => {
+      const modalEl = document.querySelector('.modal-card');
+      if(!modalEl) return;
+      const rights = Array.from(modalEl.querySelectorAll('[data-right]:checked')).map(el=>el.dataset.right);
+      const sections = Array.from(modalEl.querySelectorAll('[data-section]:checked')).map(el=>el.dataset.section);
+      if(!sections.includes('dash')) sections.push('dash');
+      if(sections.length===0){ G.toast('Нельзя сохранить пустой список разделов'); return; }
+      u.rights = rights.length ? rights : ['Водители'];
+      G.ROLE_SECTIONS[u.appRole] = sections;
+      G.toast('Права сохранены для роли «'+u.appRole+'»');
+      G.closeModal();
+    }
+  });
+}
+
+Object.assign(G.ACTIONS, {
+  'edit-rights': (t) => openRightsEditor(t.dataset.id)
+});
+
+global.GC.openRightsEditor = openRightsEditor;
+
+})(typeof window !== 'undefined' ? window : globalThis);
+
+
+/* ---- 18-forms.js ---- */
+/* ===== 18. "ADD" FORMS — every action button opens a working form, not a
+   placeholder. Modal forms read S.modal.form (kept in sync by the generic
+   [data-mf] change/input listeners in module 19); the one page-level form
+   (Handover → "Новый акт") isn't inside a modal, so its action reads the
+   DOM directly at click time instead. ===== */
+(function(global){
+'use strict';
+const G = global.GC, U = G.Utils, E = G.ENUM;
+const { esc, uid, iso, NOW } = U;
+const S = G.S;
+
+function driverOptions(){ return S.DB.drivers.filter(d=>d.car).map(d=>({value:d.id,label:d.fio})); }
+function carOptions(){ return S.DB.cars.map(c=>({value:c.id,label:c.plate+' · '+c.model})); }
+function divOptions(){ return S.DB.divs.map(d=>({value:d.id,label:d.name})); }
+
+function simpleForm(title, fields, onSave){
+  const form = {};
+  fields.forEach(f => { if(f.def!==undefined) form[f.key]=f.def; });
+  G.openModal({
+    title, form,
+    body: fields.map(f => G.mField(f.label, f.key, f.type, { options:f.options }, f.ph)).join(''),
+    saveLabel:'Создать',
+    onSave: (data) => { onSave(Object.assign(form, data)); G.closeModal(); }
+  });
+}
+
+Object.assign(G.ACTIONS, {
+  'add-driver': () => simpleForm('Новый водитель', [
+    { key:'fio', label:'ФИО', type:'text' },
+    { key:'phone', label:'Телефон', type:'text' },
+    { key:'div', label:'Филиал', type:'select', options: divOptions() },
+    { key:'rate', label:'Ставка аренды, MAD/день', type:'num', def:320 }
+  ], (f) => {
+    const div = S.DB.divs.find(d=>d.id===f.div) || S.DB.divs[0];
+    const d = {
+      id: uid('drv'), fio: f.fio||'Новый водитель', phone: f.phone||'', yid:'Y'+U.randInt(Math.random,100000,999999),
+      status:'Работает', ystatus:'Работает', form:'Штатный', hired: iso(NOW), fired:null,
+      rate: Number(f.rate)||320, balY:0, bal:0, finesBal:0, dmgBal:0,
+      org: div.org, div: div.id, disp: S.DB.disp[0].id, car:null, reportDay:1,
+      licUntil: iso(U.shift(365)), instalment:null, limit:1500, platformOrders:0, partnerOrders:0,
+      blockBelowLimit:false, tags:[], notes:[], active:true, _disc:0.9
+    };
+    S.DB.drivers.push(d);
+    G.toast('Водитель '+d.fio+' добавлен');
+  }),
+
+  'add-car': () => simpleForm('Новый автомобиль', [
+    { key:'plate', label:'Госномер', type:'text', ph:'12345-A-6' },
+    { key:'model', label:'Модель', type:'select', options: E.MODELS },
+    { key:'year', label:'Год', type:'num', def:2024 },
+    { key:'div', label:'Филиал', type:'select', options: divOptions() },
+    { key:'status', label:'Статус', type:'select', options: E.CAR_STATUS }
+  ], (f) => {
+    const div = S.DB.divs.find(d=>d.id===f.div) || S.DB.divs[0];
+    const c = { id: uid('car'), plate: f.plate||'00000-A-0', model: f.model||E.MODELS[0], year: Number(f.year)||2024,
+      org: div.org, div: div.id, akpp:'АКПП', gbo:false, status: f.status||'Свободен',
+      insurer: S.DB.insurers[0].id, insUntil: iso(U.shift(300)), techUntil: iso(U.shift(300)),
+      leaseUntil: iso(U.shift(300)), mileage:0, tags:[] };
+    S.DB.cars.push(c);
+    G.toast('Автомобиль '+c.plate+' добавлен');
+  }),
+
+  'add-user': () => simpleForm('Новый пользователь', [
+    { key:'name', label:'Имя', type:'text' },
+    { key:'role', label:'Должность', type:'text' },
+    { key:'appRole', label:'Роль доступа', type:'select', options: E.ROLES },
+    { key:'div', label:'Филиал', type:'select', options: divOptions() }
+  ], (f) => {
+    const u = { id: uid('u'), name: f.name||'Новый пользователь', role: f.role||f.appRole, appRole: f.appRole||E.ROLES[1],
+      div: f.div||null, rights:['Водители'] };
+    S.DB.users.push(u);
+    G.toast('Пользователь '+u.name+' создан');
+  }),
+
+  'add-repair': () => {
+    const slotOpts = G.daySlots().map(s=>({value:s,label:s}));
+    simpleForm('Записать на ремонт', [
+      { key:'carId', label:'Автомобиль', type:'select', options: carOptions() },
+      { key:'reason', label:'Причина', type:'select', options: Object.keys(G.SHOPS) },
+      { key:'prio', label:'Приоритет', type:'select', options: E.PRIO },
+      { key:'slotDay', label:'Дата', type:'date', def: iso(U.TODAY) },
+      { key:'slot', label:'Слот', type:'select', options: slotOpts },
+      { key:'desc', label:'Описание', type:'textarea' }
+    ], (f) => {
+      const car = S.DB.cars.find(c=>c.id===f.carId) || S.DB.cars[0];
+      const drv = S.DB.drivers.find(d=>d.car===car.id);
+      const cap = G.SHOPS[f.reason].perSlot;
+      const booked = S.DB.orders2.filter(o=>o.slotDay===f.slotDay && o.slot===f.slot && o.reason===f.reason).length;
+      if(booked >= cap){ G.toast('Нет мест на этот слот ('+f.reason+', '+f.slot+') — выберите другое время'); return; }
+      const o = {
+        no: 'НЗ-'+(1040+S.DB.orders2.length+1), car: car.plate, model: car.model, carId: car.id,
+        driver: drv?drv.fio:'—', driverId: drv?drv.id:null, div: car.div, org: car.org,
+        reason: f.reason, prio: f.prio||'Обычный', slotDay: f.slotDay, slot: f.slot,
+        mileage: car.mileage, odoPhoto:null, desc: f.desc||('Обращение: '+f.reason),
+        phase:0, mech:null, post:null, receiver:null, fuel:null, fuelPhoto:null, arrivedAt:null,
+        works: (G_REASON_JOBS()[f.reason]||[['Диагностика',1]]).map(([name,h])=>({name,h,done:false})),
+        parts:[], photoAfter:null, checkedBy:null, timer:{run:false,min:0,startedAt:null},
+        createdAt: iso(NOW), closedAt:null, returns:0, notified:false, demoOpen:false, demoBlocked:false
+      };
+      S.DB.orders2.push(o);
+      G.toast('Наряд-заказ '+o.no+' создан на '+f.slotDay+' '+f.slot);
+    });
+  },
+
+  'add-incident': () => simpleForm('Новый случай', [
+    { key:'carId', label:'Автомобиль', type:'select', options: carOptions() },
+    { key:'type', label:'Тип', type:'select', options:['ДТП','Угон попытка','Повреждение на стоянке','Страховой случай'] },
+    { key:'guilty', label:'Виновник', type:'select', options:['Водитель','Третье лицо','Не установлен'] },
+    { key:'sum', label:'Сумма ущерба', type:'num' },
+    { key:'insurer', label:'Страховая', type:'select', options: S.DB ? S.DB.insurers.map(i=>i.name) : [] }
+  ], (f) => {
+    const car = S.DB.cars.find(c=>c.id===f.carId) || S.DB.cars[0];
+    const drv = S.DB.drivers.find(d=>d.car===car.id);
+    S.DB.incidents.push({ id: uid('inc'), at: iso(NOW), car: car.plate, carId: car.id,
+      driver: drv?drv.fio:'—', driverId: drv?drv.id:null, div: car.div,
+      type: f.type, guilty: f.guilty, sum: Number(f.sum)||0, insurer: f.insurer,
+      claim:'CLM-'+U.randInt(Math.random,10000,99999), cover:'На рассмотрении', status:'Открыт' });
+    G.toast('Случай зарегистрирован');
+  }),
+
+  'add-mailing': () => simpleForm('Новая рассылка', [
+    { key:'name', label:'Название', type:'text' },
+    { key:'channel', label:'Канал', type:'select', options:['SMS','Push','Email'] },
+    { key:'sent', label:'Получателей', type:'num', def:100 }
+  ], (f) => {
+    S.DB.mailings.push({ id: uid('ml'), name:f.name||'Новая рассылка', channel:f.channel||'SMS',
+      sent:Number(f.sent)||0, opened:0, at: iso(NOW) });
+    G.toast('Рассылка создана');
+  }),
+
+  'add-part': () => simpleForm('Приход на склад', [
+    { key:'art', label:'Артикул', type:'select', options: S.DB ? S.DB.parts.map(p=>({value:p.art,label:p.art+' — '+p.name})) : [] },
+    { key:'qty', label:'Количество', type:'num', def:10 }
+  ], (f) => {
+    const p = S.DB.parts.find(x=>x.art===f.art);
+    if(p) p.stock += Number(f.qty)||0;
+    G.toast('Приход оформлен: '+(p?p.name:f.art)+' +'+(Number(f.qty)||0));
+  }),
+
+  'add-pnl': () => simpleForm('Новая операция P&L', [
+    { key:'type', label:'Тип', type:'select', options:['Доход','Расход'] },
+    { key:'cat', label:'Категория', type:'text' },
+    { key:'amount', label:'Сумма', type:'num' },
+    { key:'div', label:'Филиал', type:'select', options: divOptions() }
+  ], (f) => {
+    const div = S.DB.divs.find(d=>d.id===f.div) || S.DB.divs[0];
+    S.DB.pnl.push({ id: uid('pnl'), at: iso(NOW), type:f.type||'Расход', cat:f.cat||'Прочее',
+      amount: Number(f.amount)||0, org: div.org, div: div.id, car:'—', note:f.cat });
+    G.toast('Операция добавлена');
+  }),
+
+  'add-cash-op': () => simpleForm('Новая кассовая операция', [
+    { key:'driverId', label:'Водитель', type:'select', options: driverOptions() },
+    { key:'type', label:'Тип', type:'select', options: E.OPTYPES },
+    { key:'src', label:'Источник', type:'select', options: E.SOURCES },
+    { key:'iface', label:'Интерфейс', type:'select', options: E.IFACES },
+    { key:'amt', label:'Сумма', type:'num' }
+  ], (f) => {
+    const d = S.DB.drivers.find(x=>x.id===f.driverId);
+    if(!d || !f.amt){ G.toast('Укажите водителя и сумму'); return; }
+    S.DB.cash.push(G.mkCash(d, NOW, f.type||'Пополнение', Number(f.amt), f.iface||'Менеджер', f.src||'Баланс', G.currentUser().name));
+    G.recalcBalances(S.DB);
+    G.toast('Операция проведена');
+  }),
+
+  'add-comp': () => simpleForm('Запрос на компенсацию', [
+    { key:'driverId', label:'Водитель', type:'select', options: driverOptions() },
+    { key:'reasonId', label:'Причина', type:'select', options: S.DB ? S.DB.reasons.map(r=>({value:r.id,label:r.name})) : [] },
+    { key:'sum', label:'Сумма', type:'num' },
+    { key:'note', label:'Комментарий', type:'textarea' }
+  ], (f) => {
+    const d = S.DB.drivers.find(x=>x.id===f.driverId);
+    const reason = S.DB.reasons.find(r=>r.id===f.reasonId) || S.DB.reasons[0];
+    if(!d){ G.toast('Укажите водителя'); return; }
+    const car = S.DB.cars.find(c=>c.id===d.car);
+    const sum = Math.min(Number(f.sum)||0, reason.limit);
+    S.DB.comps.push({ id: uid('comp'), at: iso(NOW), driver:d.fio, driverId:d.id, car: car?car.plate:'—',
+      div:d.div, kind:reason.name, reason:reason.name, sum, by:G.currentUser().name,
+      status: sum>reason.limit ? 'На одобрении' : 'На одобрении',
+      note: f.note || ('Запрос на компенсацию: '+reason.name), decidedBy:null, decidedAt:null, comment:'' });
+    G.toast('Запрос отправлен на одобрение');
+  }),
+
+  'add-ref': (t) => {
+    const ref = t.dataset.ref;
+    const specs = {
+      orgs: { title:'Организация', fields:[{key:'name',label:'Название',type:'text'}], make:(f)=>({id:uid('org'),name:f.name}) },
+      divs: { title:'Подразделение', fields:[{key:'name',label:'Название',type:'text'},{key:'city',label:'Город',type:'text'},{key:'manager',label:'Менеджер',type:'text'}],
+        make:(f)=>({id:uid('div'),name:f.name,city:f.city,manager:f.manager,org:S.DB.orgs[0].id}) },
+      disp: { title:'Диспетчерская', fields:[{key:'name',label:'Название',type:'text'}], make:(f)=>({id:uid('disp'),name:f.name,div:S.DB.divs[0].id}) },
+      terminals: { title:'Терминал', fields:[{key:'name',label:'Название',type:'text'}], make:(f)=>({id:uid('term'),name:f.name,div:S.DB.divs[0].id,status:'Активен'}) },
+      banks: { title:'Банк', fields:[{key:'name',label:'Название',type:'text'},{key:'bic',label:'BIC',type:'text'}], make:(f)=>({id:uid('bank'),name:f.name,bic:f.bic}) },
+      reasons: { title:'Причина компенсации', fields:[{key:'name',label:'Название',type:'text'},{key:'limit',label:'Лимит',type:'num',def:500}], make:(f)=>({id:uid('rs'),name:f.name,limit:Number(f.limit)||500}) },
+      insurers: { title:'Страховая компания', fields:[{key:'name',label:'Название',type:'text'}], make:(f)=>({id:uid('ins'),name:f.name}) },
+      tags: { title:'Тег', fields:[{key:'name',label:'Название',type:'text'},{key:'color',label:'Цвет (HEX)',type:'text',def:'#4a90d9'}], make:(f)=>({id:uid('tag'),name:f.name,color:f.color||'#4a90d9'}) }
+    };
+    const spec = specs[ref]; if(!spec) return;
+    simpleForm(spec.title, spec.fields, (f) => { S.DB[ref].push(spec.make(f)); G.toast(spec.title+' добавлен(а)'); });
+  },
+
+  'create-act': () => {
+    const read = (key) => { const el = document.querySelector('[data-mf="'+key+'"]'); if(!el) return null; return el.type==='checkbox' ? el.checked : el.value; };
+    const kind = read('kind') || 'Выдача';
+    const driverId = read('driverId');
+    const d = S.DB.drivers.find(x=>x.id===driverId) || S.DB.drivers.find(x=>x.car);
+    const car = S.DB.cars.find(c=>c.id===d.car);
+    S.DB.acts.push({ id: uid('act'), kind, car: car.plate, model: car.model, driver: d.fio, driverId: d.id, div: d.div,
+      at: iso(NOW), by: G.currentUser().name, photos: 3, dmg: [], equip:['Аптечка','Огнетушитель','Знак аварийной остановки'],
+      fuel: Number(read('fuel'))||100, mileage: Number(read('mileage'))||car.mileage, signed: !!read('signed') });
+    G.toast('Акт '+kind.toLowerCase()+' создан для '+d.fio);
+    S.tab = 0;
+  }
+});
+
+function G_REASON_JOBS(){
+  return {
+    'Плановое ТО': [['Замена масла',0.5],['Замена фильтров',0.5],['Диагностика',1]],
+    'Слесарные работы': [['Замена колодок',1],['Регулировка развал-схождения',1]],
+    'Не заводится': [['Диагностика электрики',1],['Замена аккумулятора',0.5]],
+    'Прочее': [['Общий осмотр',1]],
+    'Шиномонтаж': [['Замена шин',0.5],['Балансировка',0.5]],
+    'Электрика': [['Диагностика проводки',1.5],['Замена лампы',0.3]],
+    'Кондиционер': [['Заправка фреона',1],['Диагностика компрессора',1]],
+    'Кузов': [['Рихтовка',3],['Покраска',2]]
+  };
+}
+
+})(typeof window !== 'undefined' ? window : globalThis);
+
+
+/* ---- 19-app-init.js ---- */
+/* ===== 19. CLICK DELEGATION & BOOTSTRAP =====
+   One delegated listener per concern, matching on data-* attributes.
+   Two traps from section 10 of the spec, both handled here:
+   1) A capture-phase guard stops clicks on SELECT/INPUT/TEXTAREA from
+      reaching the document-level click handler, so preventDefault() in a
+      handler never blocks a native dropdown/input from opening.
+   2) The account-menu / drawer "click outside to close" check also runs in
+      capture phase, because the main handler re-renders (and detaches the
+      clicked node) before the bubble phase would otherwise reach it. */
+(function(global){
+'use strict';
+const G = global.GC, S = G.S, U = G.Utils;
+
+function el(sel){ return document.querySelector(sel); }
+
+function toggleGroup(group){
+  S.menuOpen[group] = (S.menuOpen[group] === false) ? true : false;
+}
+
+Object.assign(G.ACTIONS, {
+  'toggle-drawer': () => { S.side = !S.side; },
+  'close-drawer': () => { S.side = false; },
+  'toggle-group': (t) => toggleGroup(t.dataset.group),
+  'goto': (t) => { S.sec = t.dataset.sec; S.tab = Number(t.dataset.tab||0); S.side = false; S._filtersOpen = null; },
+  'set-tab': (t) => { S.tab = Number(t.dataset.tab); },
+  'set-role': (t) => {
+    S.role = t.dataset.role;
+    const u = G.DB_USERS_BY_ROLE && G.DB_USERS_BY_ROLE[S.role];
+    if(u) S.userId = u.id;
+    S._acctOpen = false;
+    if(!G.canSeeSection(S.sec)){ S.sec = (G.ROLE_SECTIONS[S.role]||['dash'])[0]; S.tab = 0; }
+  },
+  'set-lang': (t) => { S.lang = t.dataset.lang; },
+  'toggle-acct': () => { S._acctOpen = !S._acctOpen; },
+  'toggle-filters': (t) => { const sec = t.dataset.sec; S._filtersOpen = (S._filtersOpen===sec) ? null : sec; },
+  'close-filters': () => { S._filtersOpen = null; },
+  'clear-filters': (t) => { S.filters[t.dataset.sec] = {}; },
+  'table-page': (t) => { S._tablePage = S._tablePage||{}; S._tablePage[t.dataset.sec] = Number(t.dataset.page); },
+  'close-modal': () => { G.closeModal(); },
+  'modal-save': () => {
+    if(S.modal && S.modal.onSave) S.modal.onSave(S.modal.form||{});
+  }
+});
+
+function findAct(target){
+  return target.closest ? target.closest('[data-act]') : null;
+}
+
+function attachDelegation(){
+  // Trap #1: keep native form controls native.
+  document.addEventListener('click', (e) => {
+    const tag = e.target.tagName;
+    if(tag==='SELECT' || tag==='OPTION') { /* let it open natively, but still allow our handler below via non-capture pass-through */ }
+  }, true);
+
+  // Trap #2 (capture phase): close open overlays (account menu / filters
+  // drawer / side drawer) on outside click, BEFORE the bubble-phase
+  // handler re-renders and the clicked node's context is gone.
+  document.addEventListener('click', (e) => {
+    if(S._acctOpen && !e.target.closest('.acct-wrap')){ S._acctOpen = false; }
+  }, true);
+
+  document.addEventListener('click', (e) => {
+    const t = findAct(e.target);
+    if(!t) return;
+    // Backdrop / stop-propagation guard: clicks inside a modal card must not bubble to the backdrop's close handler.
+    if(e.target.closest('[data-stop]') && t.dataset.act !== 'close-modal' && t.dataset.act !== 'modal-save') {
+      // fine, still handled below by the actual matched action element
+    }
+    const act = t.dataset.act;
+    const handler = G.ACTIONS[act];
+    if(handler){ handler(t, e); G.render(); syncAcctMenu(); }
+  });
+
+  // Filter field changes.
+  document.addEventListener('change', (e) => {
+    const t = e.target;
+    if(t.dataset && t.dataset.filterKey){
+      const sec = t.dataset.sec;
+      S.filters[sec] = S.filters[sec] || {};
+      S.filters[sec][t.dataset.filterKey] = t.value;
+      G.render();
+    }
+    if(t.dataset && t.dataset.msVal !== undefined){
+      const box = t.closest('.ms-box');
+      const sec = box.dataset.sec, key = box.dataset.filterKey;
+      const checked = Array.from(box.querySelectorAll('input[type=checkbox]:checked')).map(c=>c.dataset.msVal);
+      S.filters[sec] = S.filters[sec]||{};
+      S.filters[sec][key] = checked;
+      G.render();
+    }
+    if(t.dataset && t.dataset.mf && S.modal){
+      S.modal.form = S.modal.form || {};
+      S.modal.form[t.dataset.mf] = (t.type==='checkbox') ? t.checked : t.value;
+    }
+  });
+
+  // Text/number filter + modal-field typing: update state without a full
+  // re-render mid-keystroke would be ideal, but this app re-renders the
+  // whole page on every state change — so we preserve focus and caret
+  // position across the re-render instead of avoiding it.
+  document.addEventListener('input', (e) => {
+    const t = e.target;
+    let selector = null, pos = null;
+    if(t.dataset && t.dataset.filterKey){
+      const sec = t.dataset.sec;
+      S.filters[sec] = S.filters[sec] || {};
+      S.filters[sec][t.dataset.filterKey] = t.value;
+      selector = '[data-filter-key="'+t.dataset.filterKey+'"][data-sec="'+sec+'"]';
+      pos = t.selectionStart;
+      G.render();
+    } else if(t.dataset && t.dataset.mf && S.modal){
+      S.modal.form = S.modal.form || {};
+      S.modal.form[t.dataset.mf] = t.value;
+      // modal fields don't need a full render to reflect table changes; skip re-render for smooth typing
+      return;
+    }
+    if(selector){
+      requestAnimationFrame(() => {
+        const again = document.querySelector(selector);
+        if(again){ again.focus(); if(pos!=null && again.setSelectionRange){ try{ again.setSelectionRange(pos,pos); }catch(err){} } }
+      });
+    }
+  });
+
+  // Number inputs: blur on wheel so scrolling the page never changes a value.
+  document.addEventListener('wheel', (e) => {
+    if(e.target && e.target.tagName==='INPUT' && (e.target.type==='number' || e.target.classList.contains('no-spin'))){
+      e.target.blur();
+    }
+  }, { passive:true });
+
+  document.addEventListener('keydown', (e) => {
+    if(e.key==='Escape'){
+      if(S.modal){ G.closeModal(); return; }
+      if(S._filtersOpen){ S._filtersOpen = null; G.render(); return; }
+      if(S.side){ S.side = false; G.render(); }
+    }
+  });
+}
+
+function syncAcctMenu(){
+  const m = document.getElementById('acctMenu');
+  if(m) m.classList.toggle('open', !!S._acctOpen);
+}
+
+function boot(){
+  const DB = G.buildDB();
+  S.DB = DB;
+  G.DB_USERS_BY_ROLE = {};
+  DB.users.forEach(u => { if(!G.DB_USERS_BY_ROLE[u.appRole]) G.DB_USERS_BY_ROLE[u.appRole] = u; });
+  attachDelegation();
+  G.render();
+  syncAcctMenu();
+}
+
+if(typeof document !== 'undefined'){
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+}
+
+global.GC.boot = boot;
+
+})(typeof window !== 'undefined' ? window : globalThis);
+
+
+/* ---- 20-i18n.js ---- */
+/* ===== 20. I18N — flat RU-keyed dictionary + DOM text-walker.
+   Loaded last so every RU string used anywhere above this file can be
+   collected here. Views always render their literal Russian source text;
+   applyI18n() runs after every render and swaps substrings in place for
+   EN/FR, longest key first, respecting Cyrillic word boundaries (JS's \b
+   is Latin-only, so a manual lookaround is used instead). Applied to text
+   nodes plus placeholder/title/aria-label attributes, per spec §11.
+   NOTE: this covers navigation, section/tab labels, enums, table headers
+   and common UI chrome (~300 keys) rather than the full ~900 a production
+   build would eventually accumulate — the engine below is what matters;
+   growing the table is just adding entries. */
+(function(global){
+'use strict';
+const G = global.GC;
+
+const RU_EN = {
+  // menu groups
+  'Обзор':'Overview','Парк':'Fleet','Люди':'People','Деньги':'Money','Аналитика':'Analytics','Настройки':'Settings',
+  // menu items / sections
+  'Главное':'Dashboard','Диспетчерская':'Dispatch','Мои задачи':'My tasks','Уведомления':'Notifications',
+  'Автопарк':'Vehicles','Автосервис':'Garage','Склад':'Warehouse','Приём-выдача':'Handover','Осмотры':'Inspections',
+  'ДТП и страховые':'Incidents & insurance','Водители':'Drivers','Смены':'Shifts','Договоры':'Contracts',
+  'Обращения':'Tickets','Импорт водителей':'Import drivers','Комментарии':'Comments','Банк и касса':'Cash desk',
+  'Штрафы':'Fines','Депозиты и выплаты':'Deposits & payouts','Лизинг':'Leasing','Доходы и расходы':'P&L',
+  'Отчеты':'Reports','Справочники':'References','Пользователи':'Users',
+  // tabs
+  'Карта':'Map','Все':'All','Документы':'Documents','Финансы':'Finance',
+  'Список водителей':'Driver list','Дубли':'Duplicates',
+  'Список автомобилей':'Vehicle list','Парк построчно':'Vehicle cards',
+  'Наряд-заказы':'Work orders','Календарь записи':'Booking calendar','Посты и загрузка':'Bays & load',
+  'Склад запчастей':'Parts stock','Эффективность':'Efficiency',
+  'Акты приёма-выдачи':'Handover acts','Новый акт':'New act',
+  'Журнал смен':'Shift log','Выпуск на линию':'Release to line',
+  'Журнал осмотров':'Inspection log','Тарифы повреждений':'Damage tariffs',
+  'Реестр случаев':'Case registry',
+  'Касса':'Cash desk','Рассрочка':'Instalments','Заказы':'Orders','История':'History','Компенсации':'Compensations',
+  'Финансовый обзор':'Financial overview',
+  'Реестр штрафов':'Fine registry','Выгрузки в банк':'Bank exports',
+  'Депозиты':'Deposits','Моментальные выплаты':'Instant payouts',
+  'Электронные документы':'E-documents',
+  'Договоры лизинга':'Lease contracts','График платежей':'Payment schedule',
+  'Операции':'Entries','План и факт':'Plan vs actual',
+  'Рассылки':'Mailings','Загрузка файла':'File upload','История загрузок':'Upload history',
+  'Сводка':'Summary','Подразделения':'Branches','Задолженность по дням':'Debt by day',
+  'Собираемость':'Collection','KPI менеджеров':'Manager KPI','Светофор':'Traffic light',
+  'Организации':'Organisations','Диспетчерские':'Dispatch units','Терминалы':'Terminals','Банки':'Banks',
+  'Компенсации причины':'Compensation reasons','Страховые компании':'Insurers','Теги':'Tags',
+  'Все комментарии':'All comments',
+  // roles
+  'Кантри-менеджер':'Country manager','Менеджер парка':'Fleet manager','Приёмщик на ремонт':'Service advisor',
+  'Механик':'Mechanic','Кладовщик':'Storekeeper','Водитель':'Driver','Диспетчер':'Dispatcher',
+  // statuses / enums
+  'Работает':'Active','В отпуске':'On leave','Заблокирован':'Blocked','Уволен':'Dismissed','Нет аккаунта':'No account',
+  'Штатный':'Staff','Самозанятый':'Self-employed','ИП':'Sole proprietor',
+  'Баланс':'Balance','Баланс Яндекс':'Yandex balance','Баланс штрафов':'Fines balance','Баланс повреждений':'Damage balance',
+  'Пополнение':'Credit','Списание':'Debit',
+  'Личный кабинет':'Driver app','Терминал':'Terminal','Менеджер':'Manager','Система по расписанию':'Scheduled system',
+  'Критично':'Critical','Высокий':'High','Обычный':'Normal',
+  'В работе':'In service','На сервисе':'In garage','Свободен':'Free','Списан':'Written off',
+  'Не оплачен':'Unpaid','Оплачен':'Paid','Оспаривается':'Disputed',
+  'На одобрении':'Pending','Одобрено':'Approved','Отказано':'Rejected',
+  'Открыта':'Open','Закрыта':'Closed','Просрочена':'Overdue',
+  'Подписан':'Signed','Ожидает подписи':'Awaiting signature','Истёк':'Expired',
+  'Выплачена':'Paid out','На проверке':'Under review','Отклонена':'Declined',
+  'Записан':'Booked','Приёмка в гараже':'Garage intake','Работы и запчасти':'Jobs & parts',
+  'Выдача запчастей':'Parts handout','В ремонте':'In repair','Проверка перед выдачей':'Pre-release check',
+  'Готова после ремонта':'Ready after repair',
+  // common chrome
+  'Фильтр':'Filter','Фильтры':'Filters','Сбросить':'Reset','Применить':'Apply','Закрыть':'Close','Сохранить':'Save',
+  'Отмена':'Cancel','Создать':'Create','Показано':'Showing','из':'of','Нет данных':'No data',
+  'Добавить':'Add','Карточка':'Card','Оплатить':'Pay','Одобрить':'Approve','Отказать':'Reject',
+  'Изменить права':'Edit permissions','Не дубль':'Not a duplicate','Объединить':'Merge',
+  'Раздел в разработке':'Section under construction','Ошибка отображения':'Render error',
+  // dashboard / stat tiles
+  'Водители активных':'active drivers','всего':'total','план':'plan','среднее достижение':'average achievement',
+  'требуют внимания':'need attention','с отрицательным балансом':'with a negative balance',
+  'завершено':'completed','в работе':'in service',
+  'Собираемость аренды':'Rent collection','Утилизация автопарка':'Fleet utilisation','Простой автопарка':'Fleet idle time',
+  'Собираемость штрафов':'Fine collection','Долги уволенных водителей':'Departed-driver debt',
+  'Автопарк по филиалам':'Fleet by branch','Долг по аренде':'Rent debt','Ремонты в работе':'Open repairs',
+  'KPI менеджеров':'Manager KPI',
+  // table headers commonly reused
+  'ФИО':'Full name','Телефон':'Phone','Статус':'Status','Авто':'Vehicle','Филиал':'Branch',
+  'Госномер':'Plate','Модель':'Model','Год':'Year','Пробег':'Mileage',
+  'Нарушение':'Violation','Дата':'Date','Сумма':'Amount',
+  'Источник':'Source','Тип':'Type','Интерфейс':'Interface','Было':'Before','Стало':'After',
+  'Вид':'Kind','Всего':'Total','Остаток':'Left','В день':'Per day',
+  'Причина':'Reason','Комментарий':'Comment','Слот':'Slot','Приоритет':'Priority','Артикул':'SKU','Название':'Name',
+  'Поставщик':'Supplier','Цена':'Price','Зона':'Zone','Тип повреждения':'Damage type',
+  'Кем':'By whom','Повреждения':'Damage','Подписан ':'Signed ','Начало':'Start','Конец':'End','Часы':'Hours',
+  'Выручка':'Revenue','Путевой лист':'Waybill','Тема':'Subject','Ответственный':'Owner',
+  'Кто':'Who','Объект':'Object','Поле':'Field',
+  'Оклад + бонус':'Base + bonus','Бонус':'Bonus','Списано':'Written off',
+  'Не заводится':'Won’t start','Прочее':'Other','Шиномонтаж':'Tyres','Электрика':'Electrics','Кондиционер':'A/C','Кузов':'Body shop',
+  'Слесарные работы':'Mechanical work','Плановое ТО':'Scheduled service',
+  // frequent words inside dynamically-composed dashboard strings
+  'машин':'vehicles','водителей':'drivers','активных':'active','всего':'total',
+  'наряд-заказов':'work orders','водитель':'driver','дн.':'d.','дней':'days','дня':'days',
+  'просрочено':'overdue','месяцам':'months','по месяцам':'by month'
+};
+
+const RU_FR = {
+  'Обзор':'Aperçu','Парк':'Parc','Люди':'Personnel','Деньги':'Finances','Аналитика':'Analytique','Настройки':'Paramètres',
+  'Главное':'Tableau de bord','Диспетчерская':'Répartition','Мои задачи':'Mes tâches','Уведомления':'Notifications',
+  'Автопарк':'Véhicules','Автосервис':'Atelier','Склад':'Entrepôt','Приём-выдача':'Remise','Осмотры':'Inspections',
+  'ДТП и страховые':'Sinistres & assurances','Водители':'Chauffeurs','Смены':'Vacations','Договоры':'Contrats',
+  'Обращения':'Tickets','Импорт водителей':'Import chauffeurs','Комментарии':'Commentaires','Банк и касса':'Caisse',
+  'Штрафы':'Amendes','Депозиты и выплаты':'Dépôts & versements','Лизинг':'Location','Доходы и расходы':'Résultat',
+  'Отчеты':'Rapports','Справочники':'Référentiels','Пользователи':'Utilisateurs',
+  'Карта':'Carte','Все':'Tous','Документы':'Documents','Финансы':'Finances',
+  'Список водителей':'Liste des chauffeurs','Дубли':'Doublons',
+  'Список автомобилей':'Liste des véhicules','Парк построчно':'Fiches véhicule',
+  'Наряд-заказы':'Ordres de réparation','Календарь записи':'Calendrier','Посты и загрузка':'Postes & charge',
+  'Склад запчастей':'Stock pièces','Эффективность':'Efficacité',
+  'Акты приёма-выдачи':'Procès-verbaux','Новый акт':'Nouveau P-V',
+  'Журнал смен':'Registre des vacations','Выпуск на линию':'Mise en service',
+  'Журнал осмотров':'Registre d’inspections','Тарифы повреждений':'Tarifs dommages',
+  'Реестр случаев':'Registre des sinistres',
+  'Касса':'Caisse','Рассрочка':'Échelonnement','Заказы':'Commandes','История':'Historique','Компенсации':'Compensations',
+  'Финансовый обзор':'Aperçu financier',
+  'Реестр штрафов':'Registre des amendes','Выгрузки в банк':'Exports bancaires',
+  'Депозиты':'Dépôts','Моментальные выплаты':'Versements instantanés',
+  'Электронные документы':'Documents électroniques',
+  'Договоры лизинга':'Contrats de location','График платежей':'Échéancier',
+  'Операции':'Écritures','План и факт':'Prévu vs réel',
+  'Рассылки':'Campagnes','Загрузка файла':'Téléversement','История загрузок':'Historique des imports',
+  'Сводка':'Résumé','Подразделения':'Filiales','Задолженность по дням':'Dette par jour',
+  'Собираемость':'Recouvrement','KPI менеджеров':'KPI des managers','Светофор':'Feu tricolore',
+  'Организации':'Organisations','Диспетчерские':'Unités de répartition','Терминалы':'Terminaux','Банки':'Banques',
+  'Компенсации причины':'Motifs de compensation','Страховые компании':'Assureurs','Теги':'Étiquettes',
+  'Все комментарии':'Tous les commentaires',
+  'Кантри-менеджер':'Directeur pays','Менеджер парка':'Responsable de parc','Приёмщик на ремонт':'Réceptionnaire',
+  'Механик':'Mécanicien','Кладовщик':'Magasinier','Водитель':'Chauffeur','Диспетчер':'Répartiteur',
+  'Работает':'Actif','В отпуске':'En congé','Заблокирован':'Bloqué','Уволен':'Licencié','Нет аккаунта':'Sans compte',
+  'Штатный':'Salarié','Самозанятый':'Indépendant','ИП':'Entrepreneur',
+  'Баланс':'Solde','Баланс Яндекс':'Solde Yandex','Баланс штрафов':'Solde amendes','Баланс повреждений':'Solde dommages',
+  'Пополнение':'Crédit','Списание':'Débit',
+  'Личный кабинет':'Appli chauffeur','Терминал':'Terminal','Менеджер':'Manager','Система по расписанию':'Système planifié',
+  'Критично':'Critique','Высокий':'Élevé','Обычный':'Normal',
+  'В работе':'En service','На сервисе':'En atelier','Свободен':'Disponible','Списан':'Radié',
+  'Не оплачен':'Impayée','Оплачен':'Payée','Оспаривается':'Contestée',
+  'На одобрении':'En attente','Одобрено':'Approuvé','Отказано':'Refusé',
+  'Открыта':'Ouverte','Закрыта':'Fermée','Просрочена':'En retard',
+  'Подписан':'Signé','Ожидает подписи':'En attente de signature','Истёк':'Expiré',
+  'Выплачена':'Versée','На проверке':'En vérification','Отклонена':'Rejetée',
+  'Записан':'Planifié','Приёмка в гараже':'Réception atelier','Работы и запчасти':'Travaux & pièces',
+  'Выдача запчастей':'Remise des pièces','В ремонте':'En réparation','Проверка перед выдачей':'Contrôle final',
+  'Готова после ремонта':'Prête après réparation',
+  'Фильтр':'Filtre','Фильтры':'Filtres','Сбросить':'Réinitialiser','Применить':'Appliquer','Закрыть':'Fermer','Сохранить':'Enregistrer',
+  'Отмена':'Annuler','Создать':'Créer','Показано':'Affiché','из':'sur','Нет данных':'Aucune donnée',
+  'Добавить':'Ajouter','Карточка':'Fiche','Оплатить':'Payer','Одобрить':'Approuver','Отказать':'Refuser',
+  'Изменить права':'Modifier les droits','Не дубль':'Pas un doublon','Объединить':'Fusionner',
+  'Раздел в разработке':'Section en construction','Ошибка отображения':'Erreur d’affichage',
+  'Собираемость аренды':'Recouvrement des loyers','Утилизация автопарка':'Utilisation du parc','Простой автопарка':'Immobilisation du parc',
+  'Собираемость штрафов':'Recouvrement des amendes','Долги уволенных водителей':'Dette des chauffeurs partis',
+  'Автопарк по филиалам':'Parc par filiale','Долг по аренде':'Dette de loyer','Ремонты в работе':'Réparations en cours',
+  'ФИО':'Nom complet','Телефон':'Téléphone','Статус':'Statut','Авто':'Véhicule','Филиал':'Filiale',
+  'Госномер':'Plaque','Модель':'Modèle','Год':'Année','Пробег':'Kilométrage',
+  'Нарушение':'Infraction','Дата':'Date','Сумма':'Montant',
+  'Источник':'Source','Тип':'Type','Интерфейс':'Interface','Было':'Avant','Стало':'Après',
+  'Вид':'Genre','Всего':'Total','Остаток':'Restant','В день':'Par jour',
+  'Причина':'Motif','Комментарий':'Commentaire','Слот':'Créneau','Приоритет':'Priorité','Артикул':'Référence','Название':'Nom',
+  'Поставщик':'Fournisseur','Цена':'Prix','Зона':'Zone','Тип повреждения':'Type de dommage',
+  'Кем':'Par','Повреждения':'Dommages','Начало':'Début','Конец':'Fin','Часы':'Heures',
+  'Выручка':'Recette','Путевой лист':'Feuille de route','Тема':'Sujet','Ответственный':'Responsable',
+  'Кто':'Qui','Объект':'Objet','Поле':'Champ',
+  'Оклад + бонус':'Salaire + prime','Бонус':'Prime','Списано':'Radié',
+  'Не заводится':'Ne démarre pas','Прочее':'Autre','Шиномонтаж':'Pneus','Электрика':'Électricité','Кондиционер':'Clim','Кузов':'Carrosserie',
+  'Слесарные работы':'Travaux mécaniques','Плановое ТО':'Entretien planifié',
+  'машин':'véhicules','водителей':'chauffeurs','активных':'actifs','всего':'au total',
+  'наряд-заказов':'ordres de réparation','водитель':'chauffeur','дн.':'j.','дней':'jours','дня':'jours',
+  'просрочено':'en retard','месяцам':'mois','по месяцам':'par mois'
+};
+
+function escapeRe(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+const CACHE = {};
+function getMatcher(lang){
+  if(CACHE[lang]) return CACHE[lang];
+  const dict = lang==='en' ? RU_EN : (lang==='fr' ? RU_FR : null);
+  if(!dict) return null;
+  const keys = Object.keys(dict).sort((a,b)=> b.length-a.length).map(escapeRe);
+  // Cyrillic-aware boundary: JS \b only recognises [A-Za-z0-9_], so a
+  // Cyrillic word like "Работает" would otherwise get clipped mid-string
+  // by a naive \b (or not bounded at all) — use an explicit lookaround
+  // against the Cyrillic letter range instead.
+  const re = new RegExp('(?<![А-Яа-яЁё])(?:' + keys.join('|') + ')(?![А-Яа-яЁё])', 'g');
+  const matcher = { re, dict };
+  CACHE[lang] = matcher;
+  return matcher;
+}
+
+function translate(str, matcher){
+  if(!str || !matcher) return str;
+  if(!/[А-Яа-яЁё]/.test(str)) return str;
+  return str.replace(matcher.re, (m) => matcher.dict[m] !== undefined ? matcher.dict[m] : m);
+}
+
+function applyI18n(){
+  const S = G.S;
+  const matcher = getMatcher(S.lang);
+  const root = document.getElementById('app');
+  if(!root) return;
+  if(!matcher) return; // ru: nothing to do, views already render RU natively
+
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+  const textNodes = [];
+  let n;
+  while((n = walker.nextNode())) textNodes.push(n);
+  textNodes.forEach(node => {
+    const t = translate(node.nodeValue, matcher);
+    if(t !== node.nodeValue) node.nodeValue = t;
+  });
+
+  const attrSel = '[placeholder],[title],[aria-label]';
+  root.querySelectorAll(attrSel).forEach(el => {
+    ['placeholder','title','aria-label'].forEach(attr => {
+      const v = el.getAttribute(attr);
+      if(v){ const t = translate(v, matcher); if(t!==v) el.setAttribute(attr, t); }
+    });
+  });
+}
+
+global.GC.applyI18n = applyI18n;
+global.GC.I18N = { en: RU_EN, fr: RU_FR };
+
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+</body>
+</html>
