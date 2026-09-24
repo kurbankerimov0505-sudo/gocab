@@ -49,6 +49,19 @@ function viewDash(){
   html += statTile('Уведомления', notifN, 'требуют внимания', notifN>5?'down':'up');
   html += '</div>';
 
+  if(DB.realImport && (DB.realImport.drivers || DB.realImport.vehicles)){
+    const fs = DB.realImport.drivers ? G.computeFinancialSituation(DB.realImport.drivers) : null;
+    const vs = DB.realImport.vehicles ? G.computeVehicleStatusBreakdown(DB.realImport.vehicles) : null;
+    html += '<div class="card"><div class="card-head"><h3>Реальные данные (импорт)</h3>'
+      + '<button class="btn btn-sm btn-ghost" data-act="goto" data-sec="import" data-tab="0">К деталям →</button></div>'
+      + '<div class="grid grid-4">'
+      + (fs ? statTile('Реальный баланс водителей', cur(fs.totalBalance), fs.count+' водителей', fs.totalBalance>=0?'up':'down') : '')
+      + (fs ? statTile('Водителей с долгом', fs.inDebtCount, 'из '+fs.count, 'down') : '')
+      + (vs ? statTile('Автопарк в работе', pctS(vs.utilization), vs.total+' машин', vs.utilization>=0.8?'up':'down') : '')
+      + (vs ? statTile('Без водителя', vs.withoutDriver, 'машин простаивает', vs.withoutDriver>0?'down':'up') : '')
+      + '</div></div>';
+  }
+
   html += '<div class="card"><div class="card-head"><h3>Собираемость аренды по месяцам</h3></div>';
   const spark9 = DB._collection.months.map((m,i)=>{
     let acc=0, col=0;

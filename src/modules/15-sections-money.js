@@ -133,10 +133,14 @@ function viewMailings(){
 /* ============== IMPORT ============== */
 function viewImport(tab){
   if(tab===1) return viewImportHistory();
-  return '<div class="card"><div class="card-head"><h3>Загрузка файла</h3></div>'
-    + '<div class="muted">Загрузите CSV-файл со списком водителей для массового импорта.</div>'
-    + '<input type="file" id="importFile" accept=".csv" style="margin:12px 0">'
-    + '<div><button class="btn btn-primary" data-act="import-file">Импортировать</button></div></div>';
+  let html = '<div class="card"><div class="card-head"><h3>Загрузка файла</h3></div>'
+    + '<div class="muted">Загрузите выгрузки водителей и/или автомобилей (.xlsx или .csv) — можно выбрать оба файла сразу. '
+    + 'Данные распознаются автоматически по заголовкам колонок и используются для расчёта финансового положения и статусов автопарка ниже.</div>'
+    + '<input type="file" id="realImportFiles" accept=".xlsx,.csv" multiple style="margin:12px 0">'
+    + '<div><button class="btn btn-primary" data-act="do-real-import"'+(S._importBusy?' disabled':'')+'>'
+    + (S._importBusy ? 'Импорт…' : 'Импортировать и рассчитать')+'</button></div></div>';
+  html += G.realImportResultsHTML();
+  return html;
 }
 function viewImportHistory(){
   const DB = S.DB;
@@ -173,12 +177,6 @@ Object.assign(G.ACTIONS, {
   'approve-payout': (t) => { const p=S.DB.payouts.find(x=>x.id===t.dataset.id); if(p){ p.status='Выплачена'; G.toast('Выплата одобрена'); } },
   'reject-payout': (t) => { const p=S.DB.payouts.find(x=>x.id===t.dataset.id); if(p){ p.status='Отклонена'; G.toast('Выплата отклонена'); } },
   'resolve-ticket': (t) => { const x=S.DB.tickets.find(k=>k.id===t.dataset.id); if(x){ x.status='Решено'; G.toast('Обращение закрыто'); } },
-  'import-file': () => {
-    const inp = document.getElementById('importFile');
-    const name = (inp && inp.files && inp.files[0]) ? inp.files[0].name : 'demo.csv';
-    S.DB.imports.push({ id:'imp-'+(S.DB.imports.length+1), at:U.NOW, file:name, rows: U.randInt ? U.randInt(Math.random,5,40) : 20, ok: 18, errors: 2, by: G.currentUser().name });
-    G.toast('Импорт запущен: '+name);
-  },
   'add-comment': () => {
     const ta = document.getElementById('newCommentText');
     const text = ta ? ta.value.trim() : '';
