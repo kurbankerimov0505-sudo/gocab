@@ -146,6 +146,15 @@ function driverBalanceCard(d){
     + statTile('Штрафы', cur(-d.finesBal), '', 'down')
     + statTile('Повреждения', cur(-d.dmgBal), '', 'down')
     + '</div>';
+  // Extra fields present on imported real drivers (not part of the demo schema)
+  if(d.country || d.licenseNumber || d.idNumber || d.idExpiryDate || d.lastLoggedAt || d.createdAt){
+    html += '<div class="grid grid-4">'
+      + (d.country ? statTile('Страна', d.country, '') : '')
+      + (d.licenseNumber ? statTile('№ вод. удост.', d.licenseNumber, '') : '')
+      + (d.idNumber ? statTile('№ ID', d.idNumber + (d.idExpiryDate ? '' : ''), d.idExpiryDate ? 'до '+fmtD(d.idExpiryDate) : '') : '')
+      + (d.lastLoggedAt ? statTile('Последний вход', fmtDT(d.lastLoggedAt), '') : '')
+      + '</div>';
+  }
   html += '<div class="table-scroll"><table class="tbl"><thead><tr><th>Дата</th><th>Интерфейс</th><th>Источник</th><th>Тип</th><th>Сумма</th><th>Было</th><th>Стало</th></tr></thead><tbody>';
   ops.forEach(c => {
     html += '<tr><td>'+fmtDT(c.at)+'</td><td>'+esc(c.iface)+'</td><td>'+esc(c.src)+'</td>'
@@ -199,7 +208,12 @@ function viewCarDocs(){
     { label:'Страховка до', render:c=>expiryPill(c.insUntil) },
     { label:'Техосмотр до', render:c=>expiryPill(c.techUntil) },
     { label:'Лизинг до', render:c=>expiryPill(c.leaseUntil) },
-    { label:'Страховая', render:c=>esc((DB.insurers.find(i=>i.id===c.insurer)||{}).name||'') }
+    { label:'Страховая', render:c=>{
+        const known = (DB.insurers.find(i=>i.id===c.insurer)||{}).name;
+        if(known) return esc(known);
+        return c.insuranceType ? esc(c.insuranceType)+(c.insurancePolicyNumber?' · '+esc(c.insurancePolicyNumber):'') : '—';
+      } },
+    { label:'VIN', render:c=>esc(c.vinCode||'—') }
   ];
   return G.tableHTML(cols, DB.cars, { title:'Документы автопарка' });
 }
@@ -397,12 +411,22 @@ Object.assign(G.ACTIONS, {
   'open-car': (t) => {
     const c = carById(t.dataset.id);
     const d = S.DB.drivers.find(x=>x.car===c.id);
-    const body = '<div class="grid grid-2">'
-      + statTile('Модель', c.model,'') + statTile('Год', c.year,'')
+    let body = '<div class="grid grid-2">'
+      + statTile('Модель', c.model,'') + statTile('Год', c.year||'—','')
       + statTile('Пробег', mileageLabel(c.mileage),'') + statTile('Статус', c.status,'')
-      + statTile('Страховка', fmtD(c.insUntil),'') + statTile('Техосмотр', fmtD(c.techUntil),'')
+      + statTile('Страховка', c.insUntil?fmtD(c.insUntil):'нет данных','')
+      + statTile('Техосмотр', c.techUntil?fmtD(c.techUntil):'нет данных','')
       + statTile('Водитель', d?d.fio:'—','')
       + '</div>';
+    if(c.vinCode || c.color || c.registrationNumber || c.insuranceType || c.durationStatus){
+      body += '<div class="grid grid-2">'
+        + (c.vinCode ? statTile('VIN', c.vinCode,'') : '')
+        + (c.color ? statTile('Цвет', c.color,'') : '')
+        + (c.registrationNumber ? statTile('Рег. номер', c.registrationNumber,'') : '')
+        + (c.insuranceType ? statTile('Страховка (тип)', c.insuranceType, c.insurancePolicyNumber||'') : '')
+        + (c.durationStatus ? statTile('В текущем статусе', c.durationStatus,'') : '')
+        + '</div>';
+    }
     G.openModal({ title: c.plate, body, footer:'<button class="btn btn-ghost" data-act="close-modal">Закрыть</button>' });
   },
   'pay-fine': (t) => {

@@ -202,22 +202,40 @@ function mapDriverRow(row){
     balance: Number(row['Balance']) || 0,
     fines: Number(row['Fines']) || 0,
     activationStatus: row['Activation Status'] || '',
+    activationDate: row['Activation Date'] || null,
     fired: !!row['Fire Date'],
+    fireDate: row['Fire Date'] || null,
+    country: row['Country'] || '',
+    licenseNumber: row['License Number'] || '',
+    licenseExpiryDate: row['License Expiry Date'] || null,
+    idNumber: row['ID Number'] || '',
+    idExpiryDate: row['ID Expiry Date'] || null,
+    lastLoggedAt: row['Last Logged At'] || null,
+    createdAt: row['Created At'] || null,
     managerGroup: row['Manager Groups'] || '',
     vehiclePlate: row['Vehicles'] || '',
-    comment: row['Comment'] || ''
+    comment: row['Comment'] || '',
+    fromElement: row['From Element'] || ''
   };
 }
 function mapVehicleRow(row){
   return {
     plate: row['Plate Number'] || row['Old Number'] || '',
+    oldNumber: row['Old Number'] || '',
     brand: row['Brand'] || '', model: row['Model'] || '',
     year: row['Year'] || '',
+    registrationNumber: row['Registration Number'] || '',
+    vinCode: row['Vin Code'] || '',
+    color: row['Color'] || '',
     status: row['Status'] || '',
     durationStatus: row['Duration Status'] || '',
+    insuranceType: row['Insurance Type'] || '',
+    insurancePolicyNumber: row['Insurance Policy Number'] || '',
+    externalYango: row['External yang'] || '',
     managerGroup: row['Manager Group'] || '',
     manager: row['Manager'] || '',
-    driverName: row['Driver'] || ''
+    driverName: row['Driver'] || '',
+    createdAt: row['Created At'] || null
   };
 }
 
@@ -331,6 +349,12 @@ function applyRealDataAsPrimary(DB){
       status: REAL_CAR_STATUS[v.status] || v.status || 'Свободен',
       insurer: null, insUntil: null, techUntil: null, leaseUntil: null,
       mileage: null, tags: [],
+      // fields the demo schema doesn't have but the real export does —
+      // surfaced in the car detail modal and docs tab rather than dropped
+      oldNumber: v.oldNumber, registrationNumber: v.registrationNumber,
+      vinCode: v.vinCode, color: v.color, durationStatus: v.durationStatus,
+      insuranceType: v.insuranceType, insurancePolicyNumber: v.insurancePolicyNumber,
+      externalYango: v.externalYango, createdAt: v.createdAt,
       _importedManager: v.manager || '', _importedDriverName: v.driverName || ''
     };
   });
@@ -344,13 +368,19 @@ function applyRealDataAsPrimary(DB){
     return {
       id: 'rd-' + (d.phone || U.uid('drv')), fio: d.name || '—', phone: d.phone || '',
       yid: null, status, ystatus: d.activationStatus === 'activated' ? 'Работает' : 'Нет аккаунта',
-      form: 'Штатный', hired: null, fired: d.fired ? U.iso(U.NOW) : null,
+      form: 'Штатный', hired: d.activationDate ? d.activationDate.slice(0,10) : null,
+      fired: d.fireDate ? d.fireDate.slice(0,10) : null,
       rate: null, balY: 0, bal: 0, finesBal: 0, dmgBal: 0,
       org: div.org, div: div.id, disp: (DB.disp[0] || {}).id, car: car ? car.id : null,
-      reportDay: 1, licUntil: null, instalment: null, limit: null,
+      reportDay: 1, licUntil: d.licenseExpiryDate ? d.licenseExpiryDate.slice(0,10) : null,
+      instalment: null, limit: null,
       platformOrders: 0, partnerOrders: 0, blockBelowLimit: false,
       tags: [], notes: d.comment ? [{ by: 'Импорт', text: d.comment, at: U.NOW }] : [],
       active: status !== 'Уволен', _disc: null, gender: d.gender || '',
+      // fields the demo schema doesn't have but the real export does
+      country: d.country, licenseNumber: d.licenseNumber, idNumber: d.idNumber,
+      idExpiryDate: d.idExpiryDate ? d.idExpiryDate.slice(0,10) : null,
+      lastLoggedAt: d.lastLoggedAt, activationDate: d.activationDate, createdAt: d.createdAt,
       _importedBalance: d.balance, _importedFines: d.fines
     };
   });
