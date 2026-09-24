@@ -2425,7 +2425,39 @@ function viewCash(){
   const sorted = DB.cash.slice().sort((a,b)=>new Date(b.at)-new Date(a.at));
   const filtered = G.applyFilters('cash', sorted, defs);
   const totals = G.ledgerTotals(DB);
-  let html = '<div class="grid grid-3">'
+
+  // Full-picture dashboard: credit/debit totals over whatever is currently
+  // filtered (so narrowing by source/interface/driver updates the summary
+  // too), plus a breakdown by balance source.
+  const credit = filtered.filter(c=>c.type==='Пополнение').reduce((s,c)=>s+c.amt,0);
+  const debit = filtered.filter(c=>c.type==='Списание').reduce((s,c)=>s+c.amt,0);
+  const creditN = filtered.filter(c=>c.type==='Пополнение').length;
+  const debitN = filtered.filter(c=>c.type==='Списание').length;
+  const net = credit - debit;
+
+  let html = '<h3 style="margin:0 0 10px">Касса — общая картина'+(filtered.length!==sorted.length?' <span class="muted">(по текущему фильтру)</span>':'')+'</h3>'
+    + '<div class="grid grid-4">'
+    + statTile('Пополнения', cur(credit), creditN+' операций', 'up')
+    + statTile('Списания', cur(debit), debitN+' операций', 'down')
+    + statTile('Чистое изменение', cur(net), net>=0?'больше пополнений':'больше списаний', net>=0?'up':'down')
+    + statTile('Всего операций', filtered.length, '')
+    + '</div>';
+  const bySrc = E.SOURCES.map(src => {
+    const rows = filtered.filter(c=>c.src===src);
+    const cr = rows.filter(c=>c.type==='Пополнение').reduce((s,c)=>s+c.amt,0);
+    const db = rows.filter(c=>c.type==='Списание').reduce((s,c)=>s+c.amt,0);
+    return { src, credit:cr, debit:db, net:cr-db, n:rows.length };
+  }).filter(r=>r.n>0);
+  if(bySrc.length){
+    html += G.tableHTML([
+      { label:'Источник', key:'src' }, { label:'Пополнения', render:r=>cur(r.credit) },
+      { label:'Списания', render:r=>cur(r.debit) },
+      { label:'Нетто', render:r=>'<span style="color:'+(r.net>=0?'var(--ok)':'var(--bad)')+'">'+cur(r.net)+'</span>' },
+      { label:'Операций', key:'n' }
+    ], bySrc, { title:'По источникам' });
+  }
+
+  html += '<div class="grid grid-3">'
     + statTile('Начислено (30 дн.)', cur(totals.accrued),'')
     + statTile('Собрано (30 дн.)', cur(totals.collected),'')
     + statTile('Собираемость', pctS(totals.rate),'')
