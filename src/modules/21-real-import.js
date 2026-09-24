@@ -282,10 +282,109 @@ async function runRealImport(files){
   if(parsed.vehicles){ S.DB.realImport.vehicles = parsed.vehicles.rows; S.DB.realImport.vehiclesFile = parsed.vehicles.fileName; }
   S.DB.realImport.importedAt = U.NOW;
 
+  const applied = applyRealDataAsPrimary(S.DB);
+
   const bits = [];
   if(parsed.drivers) bits.push(parsed.drivers.rows.length+' водителей');
   if(parsed.vehicles) bits.push(parsed.vehicles.rows.length+' автомобилей');
-  return 'Импортировано: '+bits.join(', ');
+  return 'Импортировано и применено в CRM: '+bits.join(', ')
+    + ' (записано водителей: '+applied.driversApplied+', авто: '+applied.vehiclesApplied+')';
+}
+
+// Finds a division matching this manager-group label, creating one on the
+// fly if the imported data names a branch the demo reference data doesn't
+// have (kept separate from inventing fake business records — a division
+// is just an organisational label, not a claim about what happened).
+function findOrCreateDiv(DB, groupName, managerName){
+  const name = groupName || 'Импорт';
+  let div = DB.divs.find(d => d.name === name);
+  if(!div){
+    div = { id: U.uid('div-import'), name, org: DB.orgs[0].id, city: name, manager: managerName || '' };
+    DB.divs.push(div);
+  }
+  return div;
+}
+
+const REAL_CAR_STATUS = {
+  working: 'В работе', maintenance: 'На сервисе', available: 'Свободен', police_immobilization: 'Изъят'
+};
+
+// Replaces the demo drivers/vehicles with the uploaded real ones, rebuilds
+// the cash ledger from just the real opening balances (that's all the
+// source files actually contain — no day-by-day history), and clears every
+// collection that has no counterpart in the uploaded files. Those
+// collections (repairs, shifts, tickets, incidents, deposits, payouts,
+// contracts, leases, inspections, the 9-month KPI model...) would
+// otherwise keep showing fabricated demo entries now sitting under real
+// people's names and real plates — that's not a reasonable default, so
+// they're emptied rather than left stale or invented.
+function applyRealDataAsPrimary(DB){
+  const ri = DB.realImport;
+  if(!ri) return { driversApplied: 0, vehiclesApplied: 0 };
+
+  const newCars = (ri.vehicles || []).filter(v => v.plate).map(v => {
+    const div = findOrCreateDiv(DB, v.managerGroup, v.manager);
+    return {
+      id: 'rv-' + v.plate, plate: v.plate,
+      model: (v.brand + ' ' + v.model).trim() || '—',
+      year: v.year || null, org: div.org, div: div.id, akpp: 'АКПП', gbo: false,
+      status: REAL_CAR_STATUS[v.status] || v.status || 'Свободен',
+      insurer: null, insUntil: null, techUntil: null, leaseUntil: null,
+      mileage: null, tags: [],
+      _importedManager: v.manager || '', _importedDriverName: v.driverName || ''
+    };
+  });
+
+  const newDrivers = (ri.drivers || []).filter(d => d.phone || d.name).map(d => {
+    const div = findOrCreateDiv(DB, d.managerGroup, '');
+    const car = newCars.find(c => c.plate === d.vehiclePlate);
+    let status = 'Работает';
+    if(d.fired) status = 'Уволен';
+    else if(d.activationStatus && d.activationStatus !== 'activated') status = 'Заблокирован';
+    return {
+      id: 'rd-' + (d.phone || U.uid('drv')), fio: d.name || '—', phone: d.phone || '',
+      yid: null, status, ystatus: d.activationStatus === 'activated' ? 'Работает' : 'Нет аккаунта',
+      form: 'Штатный', hired: null, fired: d.fired ? U.iso(U.NOW) : null,
+      rate: null, balY: 0, bal: 0, finesBal: 0, dmgBal: 0,
+      org: div.org, div: div.id, disp: (DB.disp[0] || {}).id, car: car ? car.id : null,
+      reportDay: 1, licUntil: null, instalment: null, limit: null,
+      platformOrders: 0, partnerOrders: 0, blockBelowLimit: false,
+      tags: [], notes: d.comment ? [{ by: 'Импорт', text: d.comment, at: U.NOW }] : [],
+      active: status !== 'Уволен', _disc: null, gender: d.gender || '',
+      _importedBalance: d.balance, _importedFines: d.fines
+    };
+  });
+
+  if(ri.vehicles) DB.cars = newCars;
+  if(ri.drivers) DB.drivers = newDrivers;
+
+  // Rebuild the ledger from scratch: one opening entry per real driver for
+  // whatever balance/fines the export actually reported — nothing else is
+  // known, so nothing else is invented.
+  if(ri.drivers){
+    DB.cash = [];
+    newDrivers.forEach(d => {
+      if(d._importedBalance){
+        DB.cash.push(G.mkCash(d, U.NOW, d._importedBalance>=0?'Пополнение':'Списание',
+          Math.abs(d._importedBalance), 'Система по расписанию', 'Баланс', 'Импорт (начальный баланс)', true));
+      }
+      if(d._importedFines){
+        DB.cash.push(G.mkCash(d, U.NOW, 'Списание', Math.abs(d._importedFines),
+          'Система по расписанию', 'Баланс штрафов', 'Импорт (штрафы)', true));
+      }
+    });
+    G.recalcBalances(DB);
+  }
+
+  DB.fines = []; DB.instal = []; DB.comps = []; DB.orders = []; DB.orders2 = [];
+  DB.acts = []; DB.shifts = []; DB.deposits = []; DB.payouts = []; DB.contracts = [];
+  DB.incidents = []; DB.leases = []; DB.tickets = []; DB.inspections = [];
+  DB.pnl = []; DB.history = []; DB.dupes = []; DB._dispatch = [];
+  DB._collection = { perDriver: {}, months: (DB._collection && DB._collection.months) || [] };
+  DB._kpi = [];
+  DB._realDataIsPrimary = true;
+
+  return { driversApplied: newDrivers.length, vehiclesApplied: newCars.length };
 }
 
 function financialSituationHTML(fs){

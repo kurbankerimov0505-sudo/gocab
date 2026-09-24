@@ -51,8 +51,8 @@ function viewDash(){
   html += '<div class="grid grid-4">';
   html += statTile('Автопарк', DB.cars.length+' машин', workingCars+' в работе', workingCars>=DB.cars.length*0.8?'up':'down');
   html += statTile('Водители', DB.drivers.filter(d=>d.active).length+' активных', DB.drivers.length+' всего', 'up');
-  html += statTile('Собираемость аренды', pctS(totals.rate), 'план 96%', totals.rate>=0.9?'up':'down');
-  html += statTile('KPI менеджеров', pctS(kpiAvg), 'среднее достижение', kpiAvg>=0.8?'up':'down');
+  html += statTile('Собираемость аренды', totals.accrued ? pctS(totals.rate) : 'нет данных', 'план 96%', totals.rate>=0.9?'up':'down');
+  html += statTile('KPI менеджеров', DB._kpi.length ? pctS(kpiAvg) : 'нет данных', 'среднее достижение', kpiAvg>=0.8?'up':'down');
   html += '</div>';
 
   html += '<div class="grid grid-3">';
@@ -74,14 +74,16 @@ function viewDash(){
       + '</div></div>';
   }
 
-  html += '<div class="card"><div class="card-head"><h3>Собираемость аренды по месяцам</h3></div>';
-  const spark9 = DB._collection.months.map((m,i)=>{
-    let acc=0, col=0;
-    Object.values(DB._collection.perDriver).forEach(p=>{ acc+=p.monthly[i].accrued; col+=p.monthly[i].collected; });
-    return acc? col/acc : 0;
-  });
-  html += G.lineChartMulti([{name:'Собираемость', color:'#ffc629', values: spark9.map(x=>x*100)}], 700, 200);
-  html += '<div class="muted">'+DB._collection.months.join(' · ')+'</div></div>';
+  if(Object.keys(DB._collection.perDriver).length){
+    html += '<div class="card"><div class="card-head"><h3>Собираемость аренды по месяцам</h3></div>';
+    const spark9 = DB._collection.months.map((m,i)=>{
+      let acc=0, col=0;
+      Object.values(DB._collection.perDriver).forEach(p=>{ acc+=p.monthly[i].accrued; col+=p.monthly[i].collected; });
+      return acc? col/acc : 0;
+    });
+    html += G.lineChartMulti([{name:'Собираемость', color:'#ffc629', values: spark9.map(x=>x*100)}], 700, 200);
+    html += '<div class="muted">'+DB._collection.months.join(' · ')+'</div></div>';
+  }
 
   html += '<div class="card"><div class="card-head"><h3>Автопарк по филиалам</h3></div><div class="grid grid-3">';
   DB.divs.forEach(dv => {
@@ -117,7 +119,7 @@ function viewDrivers(tab){
     { label:'Филиал', render:d=>esc(divName(d.div)) },
     { label:'Баланс', render:d=>'<span style="color:'+(d.bal<0?'var(--bad)':'var(--ok)')+'">'+cur(d.bal)+'</span>' },
     { label:'Штрафы', render:d=> d.finesBal ? cur(d.finesBal) : '—' },
-    { label:'Дисциплина', render:d=>pctS(d._disc) },
+    { label:'Дисциплина', render:d=>discLabel(d._disc) },
     { label:'', render:d=>'<button class="btn btn-sm btn-ghost" data-act="open-driver" data-id="'+d.id+'">Карточка</button>' }
   ];
   const actions = '<button class="btn btn-sm btn-primary" data-act="add-driver">+ Водитель</button>';
@@ -173,7 +175,7 @@ function viewCars(tab){
     { label:'Модель', key:'model' }, { label:'Год', key:'year' },
     { label:'КПП', key:'akpp' }, { label:'ГБО', render:c=>c.gbo?'Да':'—' },
     { label:'Статус', render:c=>G.statusPill(c.status) },
-    { label:'Пробег', render:c=>num(c.mileage)+' км' },
+    { label:'Пробег', render:c=>mileageLabel(c.mileage) },
     { label:'Филиал', render:c=>esc(divName(c.div)) },
     { label:'', render:c=>'<button class="btn btn-sm btn-ghost" data-act="open-car" data-id="'+c.id+'">Карточка</button>' }
   ];
@@ -183,10 +185,13 @@ function viewCars(tab){
   return html;
 }
 function expiryPill(dateStr){
+  if(!dateStr) return '<span class="pill">нет данных</span>';
   const days = U.daysBetween(NOW, new Date(dateStr));
   const kind = days<0 ? 'bad' : (days<=30?'warn':'ok');
   return '<span class="pill pill-'+kind+'">'+fmtD(dateStr)+' ('+(days<0?'просрочено':days+' дн.')+')</span>';
 }
+function mileageLabel(m){ return (m===null || m===undefined) ? '—' : num(m)+' км'; }
+function discLabel(disc){ return (disc===null || disc===undefined) ? '—' : pctS(disc); }
 function viewCarDocs(){
   const DB = S.DB;
   const cols = [
@@ -204,7 +209,7 @@ function viewCarsRowByRow(){
     const d = DB.drivers.find(x=>x.car===c.id);
     return '<div class="card"><div class="card-head"><h3>'+esc(c.plate)+' · '+esc(c.model)+'</h3>'+G.statusPill(c.status)+'</div>'
       + '<div class="grid grid-4">'
-      + statTile('Год', c.year,'') + statTile('Пробег', num(c.mileage)+' км','')
+      + statTile('Год', c.year,'') + statTile('Пробег', mileageLabel(c.mileage),'')
       + statTile('Филиал', divName(c.div),'') + statTile('Водитель', d?d.fio:'Не закреплён','')
       + '</div></div>';
   }).join('');
@@ -394,7 +399,7 @@ Object.assign(G.ACTIONS, {
     const d = S.DB.drivers.find(x=>x.car===c.id);
     const body = '<div class="grid grid-2">'
       + statTile('Модель', c.model,'') + statTile('Год', c.year,'')
-      + statTile('Пробег', num(c.mileage)+' км','') + statTile('Статус', c.status,'')
+      + statTile('Пробег', mileageLabel(c.mileage),'') + statTile('Статус', c.status,'')
       + statTile('Страховка', fmtD(c.insUntil),'') + statTile('Техосмотр', fmtD(c.techUntil),'')
       + statTile('Водитель', d?d.fio:'—','')
       + '</div>';

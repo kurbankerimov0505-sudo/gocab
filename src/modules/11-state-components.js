@@ -180,7 +180,7 @@ function modalHTML(){
 // ---------------- Presentation helpers (inline SVG) ----------------
 function statusPill(text, kind){
   kind = kind || (['Работает','Активна','В работе','Выплачена','Оплачен','Одобрено','Закрыта','Подписан','Свободен'].includes(text) ? 'ok'
-    : (['Заблокирован','Уволен','Отклонена','Не оплачен','Отказано','Просрочена','Истёк','На сервисе','Списан'].includes(text) ? 'bad' : 'warn'));
+    : (['Заблокирован','Уволен','Отклонена','Не оплачен','Отказано','Просрочена','Истёк','На сервисе','Списан','Изъят'].includes(text) ? 'bad' : 'warn'));
   return '<span class="pill pill-'+kind+'">'+esc(text)+'</span>';
 }
 function tagChips(ids, tagsDB){

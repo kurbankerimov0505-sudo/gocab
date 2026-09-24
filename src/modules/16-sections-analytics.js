@@ -83,6 +83,10 @@ function viewDebtMatrix(){
 }
 function viewCollection(){
   const DB = S.DB;
+  if(!Object.keys(DB._collection.perDriver).length){
+    return '<div class="card"><div class="empty-state">Нет данных для расчёта собираемости — 9-месячная модель требует истории начислений, '
+      + 'которой нет в загруженных файлах импорта. Доступно после демо-генерации или при наличии реальной истории кассы.</div></div>';
+  }
   const months = DB._collection.months;
   const agg = months.map((m,i) => {
     let acc=0,col=0; Object.values(DB._collection.perDriver).forEach(p=>{acc+=p.monthly[i].accrued;col+=p.monthly[i].collected;});
@@ -102,6 +106,10 @@ function viewCollection(){
 function viewKPI(){
   const DB = S.DB;
   const kpis = DB._kpi;
+  if(!kpis.length){
+    return '<div class="card"><div class="empty-state">Нет данных для KPI менеджеров — расчёт требует 9-месячной истории начислений/собираемости, '
+      + 'которой нет в загруженных файлах импорта.</div></div>';
+  }
   const avg = kpis.reduce((s,m)=>s+m.avgAchievement,0)/(kpis.length||1);
   let html = '<div class="card"><div class="card-head"><h3>Итог по компании</h3></div>'
     + '<div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">'
@@ -155,12 +163,13 @@ function viewKPI(){
 function viewTrafficLight(){
   const DB = S.DB;
   const rows = DB.drivers.filter(d=>d.car).map(d => {
-    const kind = d._disc>=0.95 ? 'ok' : (d._disc>=0.85 ? 'warn' : 'bad');
-    return { fio:d.fio, disc:d._disc, bal:d.bal, kind };
+    const hasDisc = d._disc !== null && d._disc !== undefined;
+    const kind = !hasDisc ? 'warn' : (d._disc>=0.95 ? 'ok' : (d._disc>=0.85 ? 'warn' : 'bad'));
+    return { fio:d.fio, disc:d._disc, bal:d.bal, kind, hasDisc };
   });
   const cols = [
     { label:'Водитель', key:'fio' },
-    { label:'Дисциплина', render:r=>pctS(r.disc) },
+    { label:'Дисциплина', render:r=>r.hasDisc ? pctS(r.disc) : 'нет данных' },
     { label:'Баланс', render:r=>cur(r.bal) },
     { label:'Светофор', render:r=>'<span class="pill pill-'+r.kind+'">'+(r.kind==='ok'?'Зелёный':r.kind==='warn'?'Жёлтый':'Красный')+'</span>' }
   ];
