@@ -62,7 +62,7 @@ function buildRefData(){
 
   // --- Tags ---
   DB.tags = [
-    { id:'tag-1', name:'VIP', color:'#ffc629' },
+    { id:'tag-1', name:'VIP', color:'#57611e' },
     { id:'tag-2', name:'Новый', color:'#4caf7d' },
     { id:'tag-3', name:'Риск', color:'#e0554f' },
     { id:'tag-4', name:'Отпуск', color:'#7c93c9' },

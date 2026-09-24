@@ -81,7 +81,7 @@ function viewDash(){
       Object.values(DB._collection.perDriver).forEach(p=>{ acc+=p.monthly[i].accrued; col+=p.monthly[i].collected; });
       return acc? col/acc : 0;
     });
-    html += G.lineChartMulti([{name:'Собираемость', color:'#ffc629', values: spark9.map(x=>x*100)}], 700, 200);
+    html += G.lineChartMulti([{name:'Собираемость', color:'#34538c', values: spark9.map(x=>x*100)}], 700, 200);
     html += '<div class="muted">'+DB._collection.months.join(' · ')+'</div></div>';
   }
 

@@ -32,7 +32,7 @@ function viewStatsSummary(){
     let acc=0,col=0; Object.values(DB._collection.perDriver).forEach(p=>{acc+=p.monthly[i].accrued;col+=p.monthly[i].collected;});
     return acc?col/acc*100:0;
   });
-  html += G.lineChartMulti([{name:'Собираемость',color:'#ffc629',values:spark}],700,200);
+  html += G.lineChartMulti([{name:'Собираемость',color:'#34538c',values:spark}],700,200);
   html += '</div>';
   return html;
 }
@@ -94,7 +94,7 @@ function viewCollection(){
   });
   const cashTotals = G.ledgerTotals(DB);
   let html = '<div class="card"><div class="card-head"><h3>Собираемость по месяцам</h3></div>';
-  html += G.lineChartMulti([{name:'Собираемость',color:'#ffc629', values: agg.map(a=>a.accrued?a.collected/a.accrued*100:0)}], 700, 200);
+  html += G.lineChartMulti([{name:'Собираемость',color:'#34538c', values: agg.map(a=>a.accrued?a.collected/a.accrued*100:0)}], 700, 200);
   html += '</div>';
   const cols = [
     { label:'Месяц', key:'month' }, { label:'Начислено', render:r=>cur(r.accrued) },
