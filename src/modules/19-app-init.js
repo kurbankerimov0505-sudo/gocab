@@ -75,6 +75,18 @@ function attachDelegation(){
   // Filter field changes.
   document.addEventListener('change', (e) => {
     const t = e.target;
+    if(t.id === 'realImportFiles'){
+      // Deliberately does NOT call G.render(): a full re-render replaces
+      // this <input> node, which would discard the browser's native file
+      // selection before the user gets to click Import. Just update the
+      // adjacent label in place instead.
+      const label = document.getElementById('uploadFileNames');
+      if(label){
+        const files = t.files ? Array.from(t.files) : [];
+        label.textContent = files.length ? files.map(f=>f.name).join(', ') : 'Файлы не выбраны';
+      }
+      return;
+    }
     if(t.dataset && t.dataset.filterKey){
       const sec = t.dataset.sec;
       S.filters[sec] = S.filters[sec] || {};

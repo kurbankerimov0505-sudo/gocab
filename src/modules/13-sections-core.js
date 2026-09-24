@@ -12,6 +12,7 @@ function carById(id){ return S.DB.cars.find(c=>c.id===id); }
 function carByRef(refId){ return S.DB.cars.find(c=>c.id===refId); }
 function divName(id){ const d=S.DB.divs.find(x=>x.id===id); return d?d.name:''; }
 function orgName(id){ const o=S.DB.orgs.find(x=>x.id===id); return o?o.name:''; }
+function uploadFileNamesLabel(){ return 'Файлы не выбраны'; } // live-updated in place on selection, see module 19
 
 function doExport(kind, rows, cols){
   const header = cols.map(c=>c.label).join(';');
@@ -36,7 +37,18 @@ function viewDash(){
   const openRepairs = DB.orders2.filter(o=>o.phase<6).length;
   const notifN = G.notificationCount();
 
-  let html = '<div class="grid grid-4">';
+  let html = '<div class="card upload-card"><div class="card-head">'
+    + '<h3>Загрузить CSV</h3>'
+    + '<div class="muted">Выгрузки водителей и/или автомобилей (.xlsx или .csv) — можно выбрать оба файла сразу</div></div>'
+    + '<div class="upload-row">'
+    + '<label class="btn btn-primary upload-btn" for="realImportFiles">⇪ Загрузить CSV</label>'
+    + '<input type="file" id="realImportFiles" accept=".xlsx,.csv" multiple class="upload-input">'
+    + '<span class="muted" id="uploadFileNames">'+uploadFileNamesLabel()+'</span>'
+    + '<button class="btn btn-ghost" data-act="do-real-import"'+(S._importBusy?' disabled':'')+'>'
+    + (S._importBusy ? 'Импорт…' : 'Импортировать и рассчитать')+'</button>'
+    + '</div></div>';
+
+  html += '<div class="grid grid-4">';
   html += statTile('Автопарк', DB.cars.length+' машин', workingCars+' в работе', workingCars>=DB.cars.length*0.8?'up':'down');
   html += statTile('Водители', DB.drivers.filter(d=>d.active).length+' активных', DB.drivers.length+' всего', 'up');
   html += statTile('Собираемость аренды', pctS(totals.rate), 'план 96%', totals.rate>=0.9?'up':'down');
